@@ -94,22 +94,31 @@ public class PaymentService {
         }
     }
 
-
-
-    public void confirmPayment(String transactionId, Long orderId) throws MessagingException, MessagingException {
-        // Fetch the payment and order (unchanged)
+    // Quick status update - returns immediately
+    public void updatePaymentStatus(String transactionId, Long orderId) {
+        // Fetch the payment and order
         Payment payment = paymentRepository.findByTransactionId(transactionId);
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new RuntimeException("Order not found"));
 
-        // Update payment status (unchanged)
+        // Update payment status
         payment.setStatus(PaymentStatus.PAID);
         paymentRepository.save(payment);
 
-        // Update order status (unchanged)
+        // Update order status
         order.setPaymentStatus(PaymentStatus.PAID);
         orderRepository.save(order);
+    }
 
+    // Email sending - runs asynchronously
+    public void sendConfirmationEmails(String transactionId, Long orderId) throws MessagingException {
+        // Fetch the payment and order again (to ensure we have fresh data)
+        Payment payment = paymentRepository.findByTransactionId(transactionId);
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new RuntimeException("Order not found"));
+
+        // All the existing email creation and sending code
+        // [the rest of your existing email code]
         // Fetch all OrderItems for this Order (unchanged)
         List<OrderItem> orderItems = orderItemRepository.findByOrderId(order.getId());
 

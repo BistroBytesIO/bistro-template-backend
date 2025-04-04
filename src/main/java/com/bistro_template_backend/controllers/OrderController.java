@@ -89,7 +89,7 @@ public class OrderController {
         BigDecimal taxAmount = subtotal.multiply(TAX_RATE);
 
         // 3. Calculate service fee and total amount
-        BigDecimal serviceFee = subtotal.multiply(BigDecimal.valueOf(0.049)).add(BigDecimal.valueOf(0.30));
+        BigDecimal serviceFee = subtotal.multiply(BigDecimal.valueOf(0.029)).add(BigDecimal.valueOf(0.30));
         BigDecimal totalAmount = subtotal.add(taxAmount).add(serviceFee);
 
         // Set calculated values

@@ -160,7 +160,7 @@ public class PaymentService {
 
         // Build HTML email content for order details - IMPROVED VERSION
         String customerEmail = order.getCustomerEmail();
-        String customerSubject = "Order Confirmation: Your Your Restaurant Name Order #" + order.getId();
+        String customerSubject = "Order Confirmation: Your Taqueria Mexicano Grill & Bar Order #" + order.getId();
         String adminSubject = "New Order #" + order.getId() + " - Ready for Preparation";
 
         // Customer HTML email - IMPROVED VERSION
@@ -183,7 +183,7 @@ public class PaymentService {
                 "        <tr>\n" +
                 "            <td style='padding: 40px 40px 20px 40px;'>\n" +
                 "                <p style='margin-top: 0; font-size: 16px;'>Dear " + order.getCustomerName() + ",</p>\n" +
-                "                <p style='font-size: 16px;'>Thank you for ordering from Your Restaurant Name! Your order has been received and will be ready for pickup soon.</p>\n" +
+                "                <p style='font-size: 16px;'>Thank you for ordering from Taqueria Mexicano Grill & Bar! Your order has been received and will be ready for pickup soon.</p>\n" +
                 "                \n" +
                 "                <!-- ORDER DETAILS HEADER -->\n" +
                 "                <table role='presentation' width='100%' cellspacing='0' cellpadding='0' border='0' style='margin: 30px 0 10px 0;'>\n" +
@@ -299,15 +299,15 @@ public class PaymentService {
                 "                </table>\n" +
                 "                \n" +
                 "                <p style='font-size: 16px;'>We're preparing your order with care and it will be ready for pickup at our restaurant soon.</p>\n" +
-                "                <p style='font-size: 16px;'>If you have any questions, please contact us at <a href='tel:2812420190' style='color: #c6632c; text-decoration: none;'>(281) 242-0190</a>.</p>\n" +
-                "                <p style='font-size: 16px;'>Thank you for choosing Your Restaurant Name!</p>\n" +
+                "                <p style='font-size: 16px;'>If you have any questions, please contact us at <a href='tel:2813251028' style='color: #c6632c; text-decoration: none;'>(281) 325-1028</a>.</p>\n" +
+                "                <p style='font-size: 16px;'>Thank you for choosing Taqueria Mexicano Grill & Bar!</p>\n" +
                 "            </td>\n" +
                 "        </tr>\n" +
                 "        <!-- FOOTER -->\n" +
                 "        <tr>\n" +
                 "            <td style='padding: 20px; background-color: #f5f5f5; text-align: center; font-size: 14px; color: #666666;'>\n" +
-                "                <p style='margin: 0 0 10px 0;'><strong>Your Restaurant Name</strong><br>14019 Southwest Fwy, Ste 204, Sugar Land, TX 77478</p>\n" +
-                "                <p style='margin: 0; font-size: 12px;'>© 2025 Your Restaurant Name. All rights reserved.</p>\n" +
+                "                <p style='margin: 0 0 10px 0;'><strong>Taqueria Mexicano Grill & Bar</strong><br>15267 Southwest Fwy, Sugar Land, TX 77478</p>\n" +
+                "                <p style='margin: 0; font-size: 12px;'>© 2025 Taqueria Mexicano Grill & Bar. All rights reserved.</p>\n" +
                 "            </td>\n" +
                 "        </tr>\n" +
                 "    </table>\n" +
@@ -465,7 +465,7 @@ public class PaymentService {
                 "        <tr>\n" +
                 "            <td style='padding: 20px; background-color: #f5f5f5; text-align: center; font-size: 14px; color: #666666;'>\n" +
                 "                <p style='margin: 0 0 10px 0;'>This is an automated system notification.</p>\n" +
-                "                <p style='margin: 0; font-size: 12px;'>© 2025 Your Restaurant Name. All rights reserved.</p>\n" +
+                "                <p style='margin: 0; font-size: 12px;'>© 2025 Taqueria Mexicano Grill & Bar. All rights reserved.</p>\n" +
                 "            </td>\n" +
                 "        </tr>\n" +
                 "    </table>\n" +

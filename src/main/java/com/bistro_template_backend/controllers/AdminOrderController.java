@@ -48,8 +48,8 @@ public class AdminOrderController {
         String subject = "Your Order is Ready for Pickup!";
         String body = "Dear " + order.getCustomerName() + ",\n\n"
                 + "Your order #" + order.getId() + " is now ready for pickup.\n\n"
-                + "Please visit us to collect your order. Thank you for choosing Your Restaurant Name!\n\n"
-                + "Best Regards,\nYour Restaurant Name Team";
+                + "Please visit us to collect your order. Thank you for choosing Rita's Mexican Restaurant!\n\n"
+                + "Best Regards,\nRita's Mexican Restaurant Team";
 
         emailService.sendEmail(customerEmail, subject, body);
 
@@ -70,8 +70,8 @@ public class AdminOrderController {
         String subject = "Your Order has been picked up!";
         String body = "Dear " + order.getCustomerName() + ",\n\n"
                 + "Your order #" + order.getId() + " has been picked up.\n\n"
-                + "Please come again, thank you for choosing Your Restaurant Name!\n\n"
-                + "Best Regards,\nYour Restaurant Name Team";
+                + "Please come again, thank you for choosing Rita's Mexican Restaurant!\n\n"
+                + "Best Regards,\nRita's Mexican Restaurant Team";
 
         emailService.sendEmail(customerEmail, subject, body);
 

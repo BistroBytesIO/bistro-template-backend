@@ -42,6 +42,7 @@ public class OrderController {
         newOrder.setCustomerId(request.getCustomerId());
         newOrder.setCustomerName(request.getCustomerName());
         newOrder.setCustomerEmail(request.getCustomerEmail());
+        newOrder.setCustomerPhone(request.getCustomerPhone());
         newOrder.setSpecialNotes(request.getSpecialNotes());
 
         // Save the order first to get an ID

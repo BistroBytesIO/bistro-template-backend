@@ -11,6 +11,7 @@ import com.stripe.Stripe;
 import com.stripe.model.PaymentIntent;
 import com.stripe.param.PaymentIntentCreateParams;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -18,6 +19,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 @Service
 public class PaymentService {
@@ -36,6 +38,9 @@ public class PaymentService {
 
     @Autowired
     MenuItemRepository menuItemRepository;
+
+    @Autowired
+    CustomerRepository customerRepository;
 
     @Autowired
     CustomizationRepository customizationRepository;
@@ -108,6 +113,27 @@ public class PaymentService {
         // Update order status
         order.setPaymentStatus(PaymentStatus.PAID);
         orderRepository.save(order);
+
+        // Update customer stats if order has customer email
+        if (StringUtils.hasText(order.getCustomerEmail())) {
+            Optional<Customer> customerOpt = customerRepository.findByEmail(order.getCustomerEmail());
+
+            if (customerOpt.isPresent()) {
+                Customer customer = customerOpt.get();
+
+                // Update last order date
+                customer.setLastOrderDate(LocalDateTime.now());
+
+                // Increment total orders
+                Integer totalOrders = customer.getTotalOrders();
+                if (totalOrders == null) {
+                    totalOrders = 0;
+                }
+                customer.setTotalOrders(totalOrders + 1);
+
+                customerRepository.save(customer);
+            }
+        }
     }
 
     // Email sending - runs asynchronously
@@ -482,7 +508,39 @@ public class PaymentService {
         }
     }
 
+    // src/main/java/com/bistro_template_backend/services/PaymentService.java
 
+    // Add this method to the PaymentService class
+    public void saveCustomerData(String name, String email, String phone) {
+        if (email == null || email.isEmpty()) {
+            return; // Cannot save customer without email
+        }
+
+        // Check if customer already exists
+        Optional<Customer> existingCustomer = customerRepository.findByEmail(email);
+
+        if (existingCustomer.isPresent()) {
+            // Update existing customer
+            Customer customer = existingCustomer.get();
+            // Only update name and phone if provided
+            if (name != null && !name.isEmpty()) {
+                customer.setFullName(name);
+            }
+            if (phone != null && !phone.isEmpty()) {
+                customer.setPhone(phone);
+            }
+            customerRepository.save(customer);
+        } else {
+            // Create new customer
+            Customer customer = new Customer();
+            customer.setEmail(email);
+            customer.setFullName(name);
+            customer.setPhone(phone);
+            customer.setCreatedAt(LocalDateTime.now());
+            customer.setTotalOrders(0); // Initialize with zero orders
+            customerRepository.save(customer);
+        }
+    }
     /**
      * Example: Create or get a PayPal order/approval link
      */

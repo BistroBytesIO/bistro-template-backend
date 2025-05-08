@@ -13,6 +13,7 @@ public class CreateOrderRequest {
     private List<CartItemDTO> items;
     private String customerName;
     private String customerEmail;
+    private String customerPhone;
     private String specialNotes;
 
     @Data

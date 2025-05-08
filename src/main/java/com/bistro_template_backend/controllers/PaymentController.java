@@ -79,7 +79,10 @@ public class PaymentController {
     }
 
     @PostMapping("/{orderId}/confirmPayment/stripe")
-    public void confirmStripePayment(@PathVariable Long orderId) throws MessagingException {
+    public void confirmStripePayment(
+            @PathVariable Long orderId,
+            @RequestBody(required = false) Map<String, String> customerData) throws MessagingException {
+
         // 1. Find the most recent payment for this order
         List<Payment> payments = paymentRepository.findByOrderIdOrderByCreatedAtDesc(orderId);
 
@@ -89,6 +92,16 @@ public class PaymentController {
 
         // Get the most recent payment
         Payment payment = payments.get(0);
+
+        // If customer data is provided, save it
+        if (customerData != null) {
+            String name = customerData.get("name");
+            String email = customerData.get("email");
+            String phone = customerData.get("phone");
+
+            // Save customer data
+            paymentService.saveCustomerData(name, email, phone);
+        }
 
         // Update payment and order status immediately
         paymentService.updatePaymentStatus(payment.getTransactionId(), orderId);
@@ -103,6 +116,7 @@ public class PaymentController {
             }
         });
     }
+
     /**
      * Example: Endpoint to handle PayPal payment initiation.
      * e.g. POST /api/orders/{orderId}/pay/paypal

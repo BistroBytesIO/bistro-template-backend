@@ -16,7 +16,7 @@ import java.util.Map;
 
 @Repository
 public interface OrderRepository extends JpaRepository<Order, Long> {
-    List<Order> findByStatusAndPaymentStatusOrderById(OrderStatus status, PaymentStatus paymentStatus);
+    List<Order> findByStatusAndPaymentStatusOrderByIdDesc(OrderStatus status, PaymentStatus paymentStatus);
 
     // Count orders after a given datetime
     @Query("SELECT COUNT(o) FROM Order o WHERE o.orderDate >= :date")

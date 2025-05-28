@@ -48,6 +48,9 @@ public class PaymentService {
     @Autowired
     private OrderRepository orderRepository;
 
+    @Autowired
+    WebSocketOrderService webSocketOrderService;
+
     // Read your Stripe secret key from application.yml or env var
     @Value("${stripe.secretKey}")
     private String stripeSecretKey;
@@ -113,6 +116,9 @@ public class PaymentService {
         // Update order status
         order.setPaymentStatus(PaymentStatus.PAID);
         orderRepository.save(order);
+
+        // **NEW: Send WebSocket notification for new paid order**
+        webSocketOrderService.notifyNewOrder(order);
 
         // Update customer stats if order has customer email
         if (StringUtils.hasText(order.getCustomerEmail())) {

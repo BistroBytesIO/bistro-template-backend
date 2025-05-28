@@ -6,6 +6,7 @@ import com.bistro_template_backend.repositories.OrderItemCustomizationRepository
 import com.bistro_template_backend.repositories.OrderItemRepository;
 import com.bistro_template_backend.repositories.OrderRepository;
 import com.bistro_template_backend.services.EmailService;
+import com.bistro_template_backend.services.WebSocketOrderService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -34,6 +35,10 @@ public class AdminOrderController {
     @Autowired
     private EmailService emailService;
 
+    @Autowired
+    WebSocketOrderService webSocketOrderService;
+
+    // Update the existing markAsReady method
     @PutMapping("/{orderId}/ready")
     public ResponseEntity<?> markOrderAsReady(@PathVariable Long orderId) {
         Order order = orderRepository.findById(orderId)
@@ -42,6 +47,9 @@ public class AdminOrderController {
         // Update the order status to READY
         order.setStatus(OrderStatus.READY_FOR_PICKUP);
         orderRepository.save(order);
+
+        // **NEW: Send WebSocket notification for status update**
+        webSocketOrderService.notifyOrderStatusUpdate(order, "READY_FOR_PICKUP");
 
         // Send email notification to the customer
         String customerEmail = order.getCustomerEmail();
@@ -61,9 +69,12 @@ public class AdminOrderController {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new RuntimeException("Order not found"));
 
-        // Update the order status to COMPLETED (or READY)
+        // Update the order status to COMPLETED
         order.setStatus(OrderStatus.COMPLETED);
         orderRepository.save(order);
+
+        // **NEW: Send WebSocket notification for status update**
+        webSocketOrderService.notifyOrderStatusUpdate(order, "COMPLETED");
 
         // Send email notification to the customer
         String customerEmail = order.getCustomerEmail();
@@ -80,7 +91,7 @@ public class AdminOrderController {
 
     @GetMapping("/readyForPickup")
     public ResponseEntity<List<Map<String, Object>>> getReadyForPickupOrdersWithDetails() {
-        List<Order> pendingOrders = orderRepository.findByStatusAndPaymentStatusOrderById(OrderStatus.READY_FOR_PICKUP, PaymentStatus.PAID);
+        List<Order> pendingOrders = orderRepository.findByStatusAndPaymentStatusOrderByIdDesc(OrderStatus.READY_FOR_PICKUP, PaymentStatus.PAID);
 
         List<Map<String, Object>> orderDetailsList = pendingOrders.stream().map(order -> {
             Map<String, Object> orderDetails = new HashMap<>();
@@ -130,7 +141,7 @@ public class AdminOrderController {
 
     @GetMapping("/pending")
     public ResponseEntity<List<Map<String, Object>>> getPendingOrdersWithDetails() {
-        List<Order> pendingOrders = orderRepository.findByStatusAndPaymentStatusOrderById(OrderStatus.PENDING, PaymentStatus.PAID);
+        List<Order> pendingOrders = orderRepository.findByStatusAndPaymentStatusOrderByIdDesc(OrderStatus.PENDING, PaymentStatus.PAID);
 
         List<Map<String, Object>> orderDetailsList = pendingOrders.stream().map(order -> {
             Map<String, Object> orderDetails = new HashMap<>();

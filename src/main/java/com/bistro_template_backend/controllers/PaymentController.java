@@ -39,83 +39,83 @@ public class PaymentController {
      * Example: Endpoint to handle Stripe payment initiation.
      * e.g. POST /api/orders/{orderId}/pay/stripe
      */
-    @PostMapping("/{orderId}/pay/stripe")
-    public ResponseEntity<?> initiateStripePayment(@PathVariable Long orderId,
-                                                   @RequestBody PaymentRequest request) {
-        // Check if payment intent already exists for this order
-        List<Payment> existingPayments = paymentRepository.findByOrderIdOrderByCreatedAtDesc(orderId);
-        if (!existingPayments.isEmpty()) {
-            // Get the existing payment
-            Payment existingPayment = existingPayments.get(0);
-            String transactionId = existingPayment.getTransactionId();
+//    @PostMapping("/{orderId}/pay/stripe")
+//    public ResponseEntity<?> initiateStripePayment(@PathVariable Long orderId,
+//                                                   @RequestBody PaymentRequest request) {
+//        // Check if payment intent already exists for this order
+//        List<Payment> existingPayments = paymentRepository.findByOrderIdOrderByCreatedAtDesc(orderId);
+//        if (!existingPayments.isEmpty()) {
+//            // Get the existing payment
+//            Payment existingPayment = existingPayments.get(0);
+//            String transactionId = existingPayment.getTransactionId();
+//
+//            try {
+//                // Configure Stripe
+//                Stripe.apiKey = stripeSecretKey;
+//
+//                // Retrieve the existing PaymentIntent from Stripe
+//                PaymentIntent paymentIntent = PaymentIntent.retrieve(transactionId);
+//
+//                // Return the client secret and payment intent ID
+//                Map<String, Object> result = new HashMap<>();
+//                result.put("clientSecret", paymentIntent.getClientSecret());
+//                result.put("paymentIntentId", paymentIntent.getId());
+//
+//                return ResponseEntity.ok(result);
+//            } catch (Exception e) {
+//                // If there's an error retrieving (e.g., the payment intent was deleted on Stripe),
+//                // create a new one
+//                e.printStackTrace();
+//                // Fall through to create a new payment intent
+//            }
+//        }
+//
+//        // Otherwise create a new payment intent as before
+//        Order order = orderRepository.findById(orderId)
+//                .orElseThrow(() -> new RuntimeException("Order not found"));
+//
+//        Map<String, Object> result = paymentService.createStripePaymentIntent(order, request);
+//        return ResponseEntity.ok(result);
+//    }
 
-            try {
-                // Configure Stripe
-                Stripe.apiKey = stripeSecretKey;
-
-                // Retrieve the existing PaymentIntent from Stripe
-                PaymentIntent paymentIntent = PaymentIntent.retrieve(transactionId);
-
-                // Return the client secret and payment intent ID
-                Map<String, Object> result = new HashMap<>();
-                result.put("clientSecret", paymentIntent.getClientSecret());
-                result.put("paymentIntentId", paymentIntent.getId());
-
-                return ResponseEntity.ok(result);
-            } catch (Exception e) {
-                // If there's an error retrieving (e.g., the payment intent was deleted on Stripe),
-                // create a new one
-                e.printStackTrace();
-                // Fall through to create a new payment intent
-            }
-        }
-
-        // Otherwise create a new payment intent as before
-        Order order = orderRepository.findById(orderId)
-                .orElseThrow(() -> new RuntimeException("Order not found"));
-
-        Map<String, Object> result = paymentService.createStripePaymentIntent(order, request);
-        return ResponseEntity.ok(result);
-    }
-
-    @PostMapping("/{orderId}/confirmPayment/stripe")
-    public void confirmStripePayment(
-            @PathVariable Long orderId,
-            @RequestBody(required = false) Map<String, String> customerData) throws MessagingException {
-
-        // 1. Find the most recent payment for this order
-        List<Payment> payments = paymentRepository.findByOrderIdOrderByCreatedAtDesc(orderId);
-
-        if (payments.isEmpty()) {
-            throw new RuntimeException("No payment found for order: " + orderId);
-        }
-
-        // Get the most recent payment
-        Payment payment = payments.get(0);
-
-        // If customer data is provided, save it
-        if (customerData != null) {
-            String name = customerData.get("name");
-            String email = customerData.get("email");
-            String phone = customerData.get("phone");
-
-            // Save customer data
-            paymentService.saveCustomerData(name, email, phone);
-        }
-
-        // Update payment and order status immediately
-        paymentService.updatePaymentStatus(payment.getTransactionId(), orderId);
-
-        // Trigger email sending in a separate thread
-        CompletableFuture.runAsync(() -> {
-            try {
-                paymentService.sendConfirmationEmails(payment.getTransactionId(), orderId);
-            } catch (Exception e) {
-                // Log the error but don't block the response
-                System.err.println("Error sending confirmation emails: " + e.getMessage());
-            }
-        });
-    }
+//    @PostMapping("/{orderId}/confirmPayment/stripe")
+//    public void confirmStripePayment(
+//            @PathVariable Long orderId,
+//            @RequestBody(required = false) Map<String, String> customerData) throws MessagingException {
+//
+//        // 1. Find the most recent payment for this order
+//        List<Payment> payments = paymentRepository.findByOrderIdOrderByCreatedAtDesc(orderId);
+//
+//        if (payments.isEmpty()) {
+//            throw new RuntimeException("No payment found for order: " + orderId);
+//        }
+//
+//        // Get the most recent payment
+//        Payment payment = payments.get(0);
+//
+//        // If customer data is provided, save it
+//        if (customerData != null) {
+//            String name = customerData.get("name");
+//            String email = customerData.get("email");
+//            String phone = customerData.get("phone");
+//
+//            // Save customer data
+//            paymentService.saveCustomerData(name, email, phone);
+//        }
+//
+//        // Update payment and order status immediately
+//        paymentService.updatePaymentStatus(payment.getTransactionId(), orderId);
+//
+//        // Trigger email sending in a separate thread
+//        CompletableFuture.runAsync(() -> {
+//            try {
+//                paymentService.sendConfirmationEmails(payment.getTransactionId(), orderId);
+//            } catch (Exception e) {
+//                // Log the error but don't block the response
+//                System.err.println("Error sending confirmation emails: " + e.getMessage());
+//            }
+//        });
+//    }
 
     /**
      * Example: Endpoint to handle PayPal payment initiation.

@@ -31,6 +31,9 @@ public class SecurityConfig {
         http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(csrf -> csrf.disable())
+                .requiresChannel(channel ->
+                        channel.requestMatchers(r -> r.getHeader("X-Forwarded-Proto") != null)
+                                .requiresSecure())  // Force HTTPS for forwarded requests
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
@@ -58,13 +61,13 @@ public class SecurityConfig {
         CorsConfiguration configuration = new CorsConfiguration();
 
         // **FIXED: Allow specific origins and handle credentials properly**
-//        configuration.setAllowedOriginPatterns(Arrays.asList(
-//                "http://localhost:*",
-//                "http://127.0.0.1:*",
-//                "http://localhost:5173",
-//                "http://localhost:3000"
-//        ));
-        configuration.setAllowedOrigins(List.of("*"));
+        configuration.setAllowedOrigins(List.of(
+                "http://localhost:5173",
+                "https://localhost:5173",
+                "https://192.168.1.78:5173"  // Local network pattern
+//                "https://10.0.*.*:5173"      // Alternative local network
+        ));
+//        configuration.setAllowedOrigins(List.of("*"));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(Arrays.asList("*"));
 

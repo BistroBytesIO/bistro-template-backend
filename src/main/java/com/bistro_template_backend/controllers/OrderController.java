@@ -1,12 +1,17 @@
 package com.bistro_template_backend.controllers;
 
 import com.bistro_template_backend.dto.CreateOrderRequest;
+import com.bistro_template_backend.dto.PaymentRequest;
 import com.bistro_template_backend.models.*;
 import com.bistro_template_backend.repositories.CustomizationRepository;
 import com.bistro_template_backend.repositories.OrderItemCustomizationRepository;
 import com.bistro_template_backend.repositories.OrderItemRepository;
 import com.bistro_template_backend.repositories.OrderRepository;
-import org.springframework.beans.factory.annotation.Autowired;
+import com.bistro_template_backend.repositories.PaymentRepository;
+import com.bistro_template_backend.services.MobilePaymentService;
+import com.bistro_template_backend.services.PaymentService;
+import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
@@ -14,23 +19,39 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 
 @RestController
 @RequestMapping("/api/orders")
 public class OrderController {
     private static final BigDecimal TAX_RATE = new BigDecimal("0.0825");
 
-    @Autowired
-    private OrderRepository orderRepository;
+    private final OrderRepository orderRepository;
+    private final OrderItemRepository orderItemRepository;
+    private final CustomizationRepository customizationRepository;
+    private final OrderItemCustomizationRepository orderItemCustomizationRepository;
+    private final PaymentRepository paymentRepository;
+    private final PaymentService paymentService;
+    private final MobilePaymentService mobilePaymentService;
 
-    @Autowired
-    private OrderItemRepository orderItemRepository;
+    // Constructor injection to avoid circular dependencies
+    public OrderController(OrderRepository orderRepository,
+                           OrderItemRepository orderItemRepository,
+                           CustomizationRepository customizationRepository,
+                           OrderItemCustomizationRepository orderItemCustomizationRepository,
+                           PaymentRepository paymentRepository,
+                           PaymentService paymentService,
+                           MobilePaymentService mobilePaymentService) {
+        this.orderRepository = orderRepository;
+        this.orderItemRepository = orderItemRepository;
+        this.customizationRepository = customizationRepository;
+        this.orderItemCustomizationRepository = orderItemCustomizationRepository;
+        this.paymentRepository = paymentRepository;
+        this.paymentService = paymentService;
+        this.mobilePaymentService = mobilePaymentService;
+    }
 
-    @Autowired
-    private CustomizationRepository customizationRepository;
-
-    @Autowired
-    private OrderItemCustomizationRepository orderItemCustomizationRepository;
+    // ========== ORDER MANAGEMENT ENDPOINTS ==========
 
     @PostMapping
     public Order createOrder(@RequestBody CreateOrderRequest request) {
@@ -105,7 +126,6 @@ public class OrderController {
         return newOrder;
     }
 
-
     @GetMapping("/{orderId}")
     public Map<String, Object> getOrderDetails(@PathVariable Long orderId) {
         // 1. Fetch the Order
@@ -121,5 +141,250 @@ public class OrderController {
         response.put("orderItems", orderItems);
 
         return response;
+    }
+
+    // ========== PAYMENT CAPABILITY ENDPOINTS ==========
+
+    /**
+     * Get available payment methods based on device/browser capabilities
+     */
+    @GetMapping("/{orderId}/payment-methods")
+    public ResponseEntity<?> getAvailablePaymentMethods(@PathVariable Long orderId,
+                                                        HttpServletRequest request) {
+        try {
+            String userAgent = request.getHeader("User-Agent");
+
+            Map<String, Object> capabilities = mobilePaymentService
+                    .validateMobilePaymentCapabilities(userAgent, null);
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("orderId", orderId);
+            response.put("capabilities", capabilities);
+            response.put("availableMethods", getMethodsList(capabilities));
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body("Error getting payment methods: " + e.getMessage());
+        }
+    }
+
+    // ========== PAYMENT INITIATION ENDPOINTS ==========
+
+    /**
+     * Initialize Stripe payment (supports regular cards, Apple Pay, Google Pay)
+     */
+    @PostMapping("/{orderId}/pay/stripe")
+    public ResponseEntity<?> initiateStripePayment(@PathVariable Long orderId,
+                                                   @RequestBody PaymentRequest request) {
+        try {
+            // Check if payment intent already exists for this order
+            List<Payment> existingPayments = paymentRepository.findByOrderIdOrderByCreatedAtDesc(orderId);
+            if (!existingPayments.isEmpty()) {
+                Payment existingPayment = existingPayments.get(0);
+                String transactionId = existingPayment.getTransactionId();
+
+                // Return existing payment intent
+                Map<String, Object> result = new HashMap<>();
+                result.put("clientSecret", "existing_payment_intent");
+                result.put("paymentIntentId", transactionId);
+                result.put("message", "Using existing payment intent");
+                return ResponseEntity.ok(result);
+            }
+
+            Order order = orderRepository.findById(orderId)
+                    .orElseThrow(() -> new RuntimeException("Order not found"));
+
+            Map<String, Object> result;
+
+            // Determine payment method type
+            String paymentMethod = request.getPaymentMethod();
+            if ("applePay".equals(paymentMethod) || "apple_pay".equals(paymentMethod)) {
+                result = mobilePaymentService.createApplePayIntent(order, request);
+            } else if ("googlePay".equals(paymentMethod) || "google_pay".equals(paymentMethod)) {
+                result = mobilePaymentService.createGooglePayIntent(order, request);
+            } else {
+                // Regular Stripe payment
+                result = paymentService.createStripePaymentIntent(order, request);
+            }
+
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body("Error initiating payment: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Apple Pay specific endpoint
+     */
+    @PostMapping("/{orderId}/pay/applepay")
+    public ResponseEntity<?> initiateApplePayPayment(@PathVariable Long orderId,
+                                                     @RequestBody PaymentRequest request) {
+        try {
+            Order order = orderRepository.findById(orderId)
+                    .orElseThrow(() -> new RuntimeException("Order not found"));
+
+            request.setPaymentMethod("APPLE_PAY");
+            Map<String, Object> result = mobilePaymentService.createApplePayIntent(order, request);
+
+            // Add Apple Pay specific configuration
+            Map<String, Object> applePayConfig = mobilePaymentService
+                    .getMobilePaymentConfig(orderId.toString(), "apple_pay");
+            result.put("config", applePayConfig);
+
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body("Error initiating Apple Pay: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Google Pay specific endpoint
+     */
+    @PostMapping("/{orderId}/pay/googlepay")
+    public ResponseEntity<?> initiateGooglePayPayment(@PathVariable Long orderId,
+                                                      @RequestBody PaymentRequest request) {
+        try {
+            Order order = orderRepository.findById(orderId)
+                    .orElseThrow(() -> new RuntimeException("Order not found"));
+
+            request.setPaymentMethod("GOOGLE_PAY");
+            Map<String, Object> result = mobilePaymentService.createGooglePayIntent(order, request);
+
+            // Add Google Pay specific configuration
+            Map<String, Object> googlePayConfig = mobilePaymentService
+                    .getMobilePaymentConfig(orderId.toString(), "google_pay");
+            result.put("config", googlePayConfig);
+
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body("Error initiating Google Pay: " + e.getMessage());
+        }
+    }
+
+    // ========== PAYMENT CONFIRMATION ENDPOINTS ==========
+
+    /**
+     * Confirm payment for all payment methods (enhanced from PaymentController)
+     */
+    @PostMapping("/{orderId}/confirmPayment/stripe")
+    public ResponseEntity<?> confirmStripePayment(@PathVariable Long orderId,
+                                                  @RequestBody(required = false) Map<String, String> customerData) {
+        try {
+            // Find the most recent payment for this order
+            List<Payment> payments = paymentRepository.findByOrderIdOrderByCreatedAtDesc(orderId);
+
+            if (payments.isEmpty()) {
+                throw new RuntimeException("No payment found for order: " + orderId);
+            }
+
+            Payment payment = payments.get(0);
+
+            // Save customer data if provided
+            if (customerData != null) {
+                String name = customerData.get("name");
+                String email = customerData.get("email");
+                String phone = customerData.get("phone");
+                paymentService.saveCustomerData(name, email, phone);
+            }
+
+            // Update payment status immediately
+            paymentService.updatePaymentStatus(payment.getTransactionId(), orderId);
+
+            // Send confirmation emails async
+            CompletableFuture.runAsync(() -> {
+                try {
+                    paymentService.sendConfirmationEmails(payment.getTransactionId(), orderId);
+                } catch (Exception e) {
+                    System.err.println("Error sending confirmation emails: " + e.getMessage());
+                }
+            });
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "Payment confirmed successfully");
+            response.put("orderId", orderId);
+            response.put("paymentMethod", payment.getPaymentMethod());
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body("Error confirming payment: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Mobile payment confirmation endpoint
+     */
+    @PostMapping("/{orderId}/confirmPayment/mobile")
+    public ResponseEntity<?> confirmMobilePayment(@PathVariable Long orderId,
+                                                  @RequestBody Map<String, Object> paymentData) {
+        try {
+            String transactionId = (String) paymentData.get("transactionId");
+            String paymentMethod = (String) paymentData.get("paymentMethod");
+            @SuppressWarnings("unchecked")
+            Map<String, String> billingDetails = (Map<String, String>) paymentData.get("billingDetails");
+
+            // Confirm mobile payment
+            mobilePaymentService.confirmMobilePayment(transactionId, orderId, paymentMethod, billingDetails);
+
+            // Save customer data if provided
+            if (billingDetails != null) {
+                paymentService.saveCustomerData(
+                        billingDetails.get("name"),
+                        billingDetails.get("email"),
+                        billingDetails.get("phone")
+                );
+            }
+
+            // Send confirmation emails async
+            CompletableFuture.runAsync(() -> {
+                try {
+                    paymentService.sendConfirmationEmails(transactionId, orderId);
+                } catch (Exception e) {
+                    System.err.println("Error sending confirmation emails: " + e.getMessage());
+                }
+            });
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "Mobile payment confirmed successfully");
+            response.put("orderId", orderId);
+            response.put("paymentMethod", paymentMethod);
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body("Error confirming mobile payment: " + e.getMessage());
+        }
+    }
+
+    // ========== HELPER METHODS ==========
+
+    /**
+     * Helper method to build available payment methods list
+     */
+    private Map<String, Object> getMethodsList(Map<String, Object> capabilities) {
+        Map<String, Object> methods = new HashMap<>();
+
+        // Always available
+        methods.put("card", Map.of(
+                "available", true,
+                "name", "Credit/Debit Card",
+                "description", "Pay with your credit or debit card"
+        ));
+
+        // Apple Pay
+        methods.put("apple_pay", Map.of(
+                "available", (Boolean) capabilities.get("supportsApplePay"),
+                "name", "Apple Pay",
+                "description", "Pay securely with Touch ID or Face ID"
+        ));
+
+        // Google Pay
+        methods.put("google_pay", Map.of(
+                "available", (Boolean) capabilities.get("supportsGooglePay"),
+                "name", "Google Pay",
+                "description", "Pay with your saved Google payment methods"
+        ));
+
+        return methods;
     }
 }

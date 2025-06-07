@@ -64,7 +64,8 @@ public class SecurityConfig {
         configuration.setAllowedOrigins(List.of(
                 "http://localhost:5173",
                 "https://localhost:5173",
-                "https://192.168.1.78:5173"  // Local network pattern
+                "https://192.168.1.78:5173",  // Local network pattern
+                "https://darling-treefrog-settled.ngrok-free.app"
 //                "https://10.0.*.*:5173"      // Alternative local network
         ));
 //        configuration.setAllowedOrigins(List.of("*"));

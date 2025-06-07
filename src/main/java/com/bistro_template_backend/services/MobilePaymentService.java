@@ -42,14 +42,14 @@ public class MobilePaymentService {
             long amountInCents = request.getAmount()
                     .multiply(new BigDecimal("100")).longValue();
 
+            // FIXED: Use only automatic_payment_methods, remove addPaymentMethodType
             PaymentIntentCreateParams params = PaymentIntentCreateParams.builder()
                     .setAmount(amountInCents)
                     .setCurrency(request.getCurrency().toLowerCase())
                     .setDescription(request.getDescription())
                     .putMetadata("orderId", order.getId().toString())
                     .putMetadata("paymentMethod", "apple_pay")
-                    .addPaymentMethodType("card")
-                    // Enable Apple Pay
+                    // FIXED: Only use automatic payment methods for Apple Pay
                     .setAutomaticPaymentMethods(
                             PaymentIntentCreateParams.AutomaticPaymentMethods.builder()
                                     .setEnabled(true)
@@ -90,14 +90,14 @@ public class MobilePaymentService {
             long amountInCents = request.getAmount()
                     .multiply(new BigDecimal("100")).longValue();
 
+            // FIXED: Use only automatic_payment_methods, remove addPaymentMethodType
             PaymentIntentCreateParams params = PaymentIntentCreateParams.builder()
                     .setAmount(amountInCents)
                     .setCurrency(request.getCurrency().toLowerCase())
                     .setDescription(request.getDescription())
                     .putMetadata("orderId", order.getId().toString())
                     .putMetadata("paymentMethod", "google_pay")
-                    .addPaymentMethodType("card")
-                    // Enable Google Pay
+                    // FIXED: Only use automatic payment methods for Google Pay
                     .setAutomaticPaymentMethods(
                             PaymentIntentCreateParams.AutomaticPaymentMethods.builder()
                                     .setEnabled(true)

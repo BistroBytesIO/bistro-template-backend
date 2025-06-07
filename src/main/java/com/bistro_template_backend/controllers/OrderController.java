@@ -51,6 +51,53 @@ public class OrderController {
         this.mobilePaymentService = mobilePaymentService;
     }
 
+    /**
+     * Debug endpoint to check order and payment status
+     */
+    @GetMapping("/{orderId}/debug")
+    public ResponseEntity<?> debugOrder(@PathVariable Long orderId) {
+        try {
+            Order order = orderRepository.findById(orderId)
+                    .orElseThrow(() -> new RuntimeException("Order not found"));
+
+            List<Payment> payments = paymentRepository.findByOrderIdOrderByCreatedAtDesc(orderId);
+
+            Map<String, Object> debug = new HashMap<>();
+            debug.put("orderId", orderId);
+            debug.put("orderExists", true);
+            debug.put("orderStatus", order.getStatus());
+            debug.put("paymentStatus", order.getPaymentStatus());
+            debug.put("totalAmount", order.getTotalAmount());
+            debug.put("subTotal", order.getSubTotal());
+            debug.put("tax", order.getTax());
+            debug.put("serviceFee", order.getServiceFee());
+            debug.put("customerEmail", order.getCustomerEmail());
+            debug.put("orderDate", order.getOrderDate());
+            debug.put("paymentsCount", payments.size());
+
+            if (!payments.isEmpty()) {
+                Payment latestPayment = payments.get(0);
+                debug.put("latestPaymentMethod", latestPayment.getPaymentMethod());
+                debug.put("latestPaymentStatus", latestPayment.getStatus());
+                debug.put("latestTransactionId", latestPayment.getTransactionId());
+                debug.put("latestPaymentAmount", latestPayment.getAmount());
+            }
+
+            // Validate minimum amount
+            boolean meetsMinimum = order.getTotalAmount().compareTo(new BigDecimal("0.50")) >= 0;
+            debug.put("meetsStripeMinimum", meetsMinimum);
+
+            return ResponseEntity.ok(debug);
+
+        } catch (Exception e) {
+            Map<String, Object> error = new HashMap<>();
+            error.put("orderId", orderId);
+            error.put("orderExists", false);
+            error.put("error", e.getMessage());
+            return ResponseEntity.ok(error);
+        }
+    }
+
     // ========== ORDER MANAGEMENT ENDPOINTS ==========
 
     @PostMapping
@@ -244,10 +291,42 @@ public class OrderController {
     public ResponseEntity<?> initiateGooglePayPayment(@PathVariable Long orderId,
                                                       @RequestBody PaymentRequest request) {
         try {
+            // Check if payment intent already exists for this order
+            List<Payment> existingPayments = paymentRepository.findByOrderIdOrderByCreatedAtDesc(orderId);
+            if (!existingPayments.isEmpty()) {
+                Payment existingPayment = existingPayments.get(0);
+
+                // Check if the existing payment is still valid (not failed or expired)
+                if (existingPayment.getStatus() == PaymentStatus.INITIATED) {
+                    System.out.println("♻️ Reusing existing Google Pay PaymentIntent for order: " + orderId);
+
+                    Map<String, Object> result = new HashMap<>();
+                    result.put("clientSecret", "existing_payment_intent");
+                    result.put("paymentIntentId", existingPayment.getTransactionId());
+                    result.put("message", "Using existing payment intent");
+
+                    // Add Google Pay specific configuration
+                    Map<String, Object> googlePayConfig = mobilePaymentService
+                            .getMobilePaymentConfig(orderId.toString(), "google_pay");
+                    result.put("config", googlePayConfig);
+
+                    return ResponseEntity.ok(result);
+                }
+            }
+
             Order order = orderRepository.findById(orderId)
                     .orElseThrow(() -> new RuntimeException("Order not found"));
 
+            // Validate order amount meets Stripe minimum (50 cents for USD)
+            if (order.getTotalAmount().compareTo(new BigDecimal("0.50")) < 0) {
+                return ResponseEntity.badRequest().body(
+                        "Order amount (" + order.getTotalAmount() + ") is below minimum charge amount of $0.50"
+                );
+            }
+
             request.setPaymentMethod("GOOGLE_PAY");
+            request.setAmount(order.getTotalAmount()); // Use order total, not request amount
+
             Map<String, Object> result = mobilePaymentService.createGooglePayIntent(order, request);
 
             // Add Google Pay specific configuration
@@ -255,12 +334,15 @@ public class OrderController {
                     .getMobilePaymentConfig(orderId.toString(), "google_pay");
             result.put("config", googlePayConfig);
 
+            System.out.println("✅ Created new Google Pay PaymentIntent for order: " + orderId +
+                    " with amount: $" + order.getTotalAmount());
+
             return ResponseEntity.ok(result);
         } catch (Exception e) {
+            System.err.println("❌ Error initiating Google Pay for order " + orderId + ": " + e.getMessage());
             return ResponseEntity.badRequest().body("Error initiating Google Pay: " + e.getMessage());
         }
     }
-
     // ========== PAYMENT CONFIRMATION ENDPOINTS ==========
 
     /**

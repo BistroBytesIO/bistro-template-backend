@@ -13,7 +13,8 @@ public class CorsConfig implements WebMvcConfigurer {
                         "http://localhost:5173",
                         "https://localhost:5173",
                         "https://192.168.1.178:5173",  // Your local network
-                        "https://10.0.0.*:5173"      // Alternative local network
+                        "https://10.0.0.*:5173",      // Alternative local network
+                        "https://darling-treefrog-settled.ngrok-free.app"
                 )
                 .allowedMethods("*")
                 .allowedHeaders("*")

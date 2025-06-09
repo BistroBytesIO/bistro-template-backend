@@ -1,3 +1,4 @@
+// src/main/java/com/bistro_template_backend/config/CorsConfig.java
 package com.bistro_template_backend.config;
 
 import org.springframework.context.annotation.Configuration;
@@ -9,15 +10,19 @@ public class CorsConfig implements WebMvcConfigurer {
     @Override
     public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/**")
-                .allowedOrigins(
-                        "http://localhost:5173",
-                        "https://localhost:5173",
-                        "https://192.168.1.178:5173",  // Your local network
-                        "https://10.0.0.*:5173",      // Alternative local network
-                        "https://darling-treefrog-settled.ngrok-free.app"
+                .allowedOriginPatterns(
+                        "http://localhost:*",
+                        "https://localhost:*",
+                        "http://192.168.*.*:*",
+                        "https://192.168.*.*:*",
+                        "http://10.0.*.*:*",
+                        "https://10.0.*.*:*",
+                        "https://darling-treefrog-settled.ngrok-free.app",
+                        "https://*.ngrok-free.app",
+                        "https://*.ngrok.io"
                 )
                 .allowedMethods("*")
                 .allowedHeaders("*")
-                .allowCredentials(true);
+                .allowCredentials(false); // Changed to false for broader compatibility
     }
 }

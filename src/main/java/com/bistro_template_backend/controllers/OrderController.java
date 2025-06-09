@@ -20,10 +20,16 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import com.stripe.Stripe;
+import com.stripe.model.PaymentIntent;
+import org.springframework.beans.factory.annotation.Value;
 
 @RestController
 @RequestMapping("/api/orders")
 public class OrderController {
+    @Value("${stripe.secretKey}")
+    private String stripeSecretKey;
+
     private static final BigDecimal TAX_RATE = new BigDecimal("0.0825");
 
     private final OrderRepository orderRepository;
@@ -291,29 +297,6 @@ public class OrderController {
     public ResponseEntity<?> initiateGooglePayPayment(@PathVariable Long orderId,
                                                       @RequestBody PaymentRequest request) {
         try {
-            // Check if payment intent already exists for this order
-            List<Payment> existingPayments = paymentRepository.findByOrderIdOrderByCreatedAtDesc(orderId);
-            if (!existingPayments.isEmpty()) {
-                Payment existingPayment = existingPayments.get(0);
-
-                // Check if the existing payment is still valid (not failed or expired)
-                if (existingPayment.getStatus() == PaymentStatus.INITIATED) {
-                    System.out.println("♻️ Reusing existing Google Pay PaymentIntent for order: " + orderId);
-
-                    Map<String, Object> result = new HashMap<>();
-                    result.put("clientSecret", "existing_payment_intent");
-                    result.put("paymentIntentId", existingPayment.getTransactionId());
-                    result.put("message", "Using existing payment intent");
-
-                    // Add Google Pay specific configuration
-                    Map<String, Object> googlePayConfig = mobilePaymentService
-                            .getMobilePaymentConfig(orderId.toString(), "google_pay");
-                    result.put("config", googlePayConfig);
-
-                    return ResponseEntity.ok(result);
-                }
-            }
-
             Order order = orderRepository.findById(orderId)
                     .orElseThrow(() -> new RuntimeException("Order not found"));
 
@@ -324,6 +307,40 @@ public class OrderController {
                 );
             }
 
+            // Check if payment intent already exists for this order
+            List<Payment> existingPayments = paymentRepository.findByOrderIdOrderByCreatedAtDesc(orderId);
+            if (!existingPayments.isEmpty()) {
+                Payment existingPayment = existingPayments.get(0);
+
+                // Check if the existing payment is still valid (not failed or expired)
+                if (existingPayment.getStatus() == PaymentStatus.INITIATED) {
+                    System.out.println("♻️ Reusing existing Google Pay PaymentIntent for order: " + orderId);
+
+                    // FIXED: We need to retrieve the actual client secret from Stripe
+                    try {
+                        Stripe.apiKey = stripeSecretKey;
+                        PaymentIntent paymentIntent = PaymentIntent.retrieve(existingPayment.getTransactionId());
+
+                        Map<String, Object> result = new HashMap<>();
+                        result.put("clientSecret", paymentIntent.getClientSecret());
+                        result.put("paymentIntentId", existingPayment.getTransactionId());
+                        result.put("message", "Using existing payment intent");
+
+                        // Add Google Pay specific configuration
+                        Map<String, Object> googlePayConfig = mobilePaymentService
+                                .getMobilePaymentConfig(orderId.toString(), "google_pay");
+                        result.put("config", googlePayConfig);
+
+                        return ResponseEntity.ok(result);
+                    } catch (Exception e) {
+                        System.err.println("❌ Error retrieving existing PaymentIntent: " + e.getMessage());
+                        // If we can't retrieve the existing payment intent, create a new one
+                        // Fall through to create new payment intent
+                    }
+                }
+            }
+
+            // Create new payment intent
             request.setPaymentMethod("GOOGLE_PAY");
             request.setAmount(order.getTotalAmount()); // Use order total, not request amount
 

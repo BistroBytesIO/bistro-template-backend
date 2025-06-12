@@ -22,6 +22,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import com.stripe.Stripe;
 import com.stripe.model.PaymentIntent;
+import com.stripe.param.PaymentIntentCreateParams;
 import org.springframework.beans.factory.annotation.Value;
 
 @RestController
@@ -224,50 +225,118 @@ public class OrderController {
     // ========== PAYMENT INITIATION ENDPOINTS ==========
 
     /**
-     * Initialize Stripe payment (supports regular cards, Apple Pay, Google Pay)
+     * Enhanced Stripe payment initialization with ExpressCheckout support
      */
     @PostMapping("/{orderId}/pay/stripe")
     public ResponseEntity<?> initiateStripePayment(@PathVariable Long orderId,
                                                    @RequestBody PaymentRequest request) {
         try {
+            Order order = orderRepository.findById(orderId)
+                    .orElseThrow(() -> new RuntimeException("Order not found"));
+
+            // Validate minimum amount
+            if (order.getTotalAmount().compareTo(new BigDecimal("0.50")) < 0) {
+                return ResponseEntity.badRequest().body(
+                        "Order amount (" + order.getTotalAmount() + ") is below minimum charge amount of $0.50"
+                );
+            }
+
             // Check if payment intent already exists for this order
             List<Payment> existingPayments = paymentRepository.findByOrderIdOrderByCreatedAtDesc(orderId);
             if (!existingPayments.isEmpty()) {
                 Payment existingPayment = existingPayments.get(0);
-                String transactionId = existingPayment.getTransactionId();
 
-                // Return existing payment intent
-                Map<String, Object> result = new HashMap<>();
-                result.put("clientSecret", "existing_payment_intent");
-                result.put("paymentIntentId", transactionId);
-                result.put("message", "Using existing payment intent");
-                return ResponseEntity.ok(result);
+                if (existingPayment.getStatus() == PaymentStatus.INITIATED) {
+                    try {
+                        Stripe.apiKey = stripeSecretKey;
+                        PaymentIntent paymentIntent = PaymentIntent.retrieve(existingPayment.getTransactionId());
+
+                        Map<String, Object> result = new HashMap<>();
+                        result.put("clientSecret", paymentIntent.getClientSecret());
+                        result.put("paymentIntentId", existingPayment.getTransactionId());
+                        result.put("message", "Using existing payment intent");
+                        return ResponseEntity.ok(result);
+                    } catch (Exception e) {
+                        System.err.println("❌ Error retrieving existing PaymentIntent: " + e.getMessage());
+                        // Fall through to create new payment intent
+                    }
+                }
             }
 
-            Order order = orderRepository.findById(orderId)
-                    .orElseThrow(() -> new RuntimeException("Order not found"));
-
-            Map<String, Object> result;
-
-            // Determine payment method type
-            String paymentMethod = request.getPaymentMethod();
-            if ("applePay".equals(paymentMethod) || "apple_pay".equals(paymentMethod)) {
-                result = mobilePaymentService.createApplePayIntent(order, request);
-            } else if ("googlePay".equals(paymentMethod) || "google_pay".equals(paymentMethod)) {
-                result = mobilePaymentService.createGooglePayIntent(order, request);
-            } else {
-                // Regular Stripe payment
-                result = paymentService.createStripePaymentIntent(order, request);
-            }
-
+            // Create new payment intent with enhanced configuration for ExpressCheckout
+            Map<String, Object> result = createEnhancedPaymentIntent(order, request);
             return ResponseEntity.ok(result);
+
         } catch (Exception e) {
+            System.err.println("❌ Error initiating Stripe payment: " + e.getMessage());
             return ResponseEntity.badRequest().body("Error initiating payment: " + e.getMessage());
         }
     }
 
     /**
-     * Apple Pay specific endpoint
+     * Create enhanced PaymentIntent with ExpressCheckout support
+     */
+    private Map<String, Object> createEnhancedPaymentIntent(Order order, PaymentRequest request) {
+        try {
+            Stripe.apiKey = stripeSecretKey;
+
+            long amountInCents = order.getTotalAmount()
+                    .multiply(new BigDecimal("100")).longValue();
+
+            String paymentMethod = request.getPaymentMethod();
+            System.out.println("🔧 Creating PaymentIntent for method: " + paymentMethod +
+                    " with amount: $" + order.getTotalAmount());
+
+            PaymentIntentCreateParams.Builder paramsBuilder = PaymentIntentCreateParams.builder()
+                    .setAmount(amountInCents)
+                    .setCurrency(request.getCurrency().toLowerCase())
+                    .setDescription(request.getDescription())
+                    .putMetadata("orderId", order.getId().toString())
+                    .putMetadata("paymentMethod", paymentMethod)
+                    .setAutomaticPaymentMethods(
+                            PaymentIntentCreateParams.AutomaticPaymentMethods.builder()
+                                    .setEnabled(true)
+                                    .setAllowRedirects(PaymentIntentCreateParams.AutomaticPaymentMethods.AllowRedirects.ALWAYS)
+                                    .build()
+                    )
+                    .setSetupFutureUsage(PaymentIntentCreateParams.SetupFutureUsage.OFF_SESSION)
+                    .setCaptureMethod(PaymentIntentCreateParams.CaptureMethod.AUTOMATIC);
+
+            // Enhanced configuration for ExpressCheckout
+            if ("express_checkout".equals(paymentMethod)) {
+                System.out.println("🚀 Configuring ExpressCheckout PaymentIntent");
+                // ExpressCheckout supports all payment methods automatically
+                // No specific payment method restrictions needed
+            }
+
+            PaymentIntent paymentIntent = PaymentIntent.create(paramsBuilder.build());
+
+            // Create payment record
+            Payment payment = new Payment();
+            payment.setOrderId(order.getId());
+            payment.setAmount(order.getTotalAmount());
+            payment.setPaymentMethod(paymentMethod.toUpperCase());
+            payment.setTransactionId(paymentIntent.getId());
+            payment.setStatus(PaymentStatus.INITIATED);
+            paymentRepository.save(payment);
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("clientSecret", paymentIntent.getClientSecret());
+            response.put("paymentIntentId", paymentIntent.getId());
+            response.put("paymentMethod", paymentMethod);
+
+            System.out.println("✅ Created PaymentIntent: " + paymentIntent.getId() +
+                    " for order: " + order.getId());
+
+            return response;
+        } catch (Exception e) {
+            e.printStackTrace();
+            throw new RuntimeException("Error creating enhanced PaymentIntent: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Apple Pay specific endpoint (legacy support)
      */
     @PostMapping("/{orderId}/pay/applepay")
     public ResponseEntity<?> initiateApplePayPayment(@PathVariable Long orderId,
@@ -291,7 +360,7 @@ public class OrderController {
     }
 
     /**
-     * Google Pay specific endpoint
+     * Google Pay specific endpoint (legacy support)
      */
     @PostMapping("/{orderId}/pay/googlepay")
     public ResponseEntity<?> initiateGooglePayPayment(@PathVariable Long orderId,
@@ -312,11 +381,7 @@ public class OrderController {
             if (!existingPayments.isEmpty()) {
                 Payment existingPayment = existingPayments.get(0);
 
-                // Check if the existing payment is still valid (not failed or expired)
                 if (existingPayment.getStatus() == PaymentStatus.INITIATED) {
-                    System.out.println("♻️ Reusing existing Google Pay PaymentIntent for order: " + orderId);
-
-                    // FIXED: We need to retrieve the actual client secret from Stripe
                     try {
                         Stripe.apiKey = stripeSecretKey;
                         PaymentIntent paymentIntent = PaymentIntent.retrieve(existingPayment.getTransactionId());
@@ -334,7 +399,6 @@ public class OrderController {
                         return ResponseEntity.ok(result);
                     } catch (Exception e) {
                         System.err.println("❌ Error retrieving existing PaymentIntent: " + e.getMessage());
-                        // If we can't retrieve the existing payment intent, create a new one
                         // Fall through to create new payment intent
                     }
                 }
@@ -342,7 +406,7 @@ public class OrderController {
 
             // Create new payment intent
             request.setPaymentMethod("GOOGLE_PAY");
-            request.setAmount(order.getTotalAmount()); // Use order total, not request amount
+            request.setAmount(order.getTotalAmount());
 
             Map<String, Object> result = mobilePaymentService.createGooglePayIntent(order, request);
 
@@ -360,10 +424,11 @@ public class OrderController {
             return ResponseEntity.badRequest().body("Error initiating Google Pay: " + e.getMessage());
         }
     }
+
     // ========== PAYMENT CONFIRMATION ENDPOINTS ==========
 
     /**
-     * Confirm payment for all payment methods (enhanced from PaymentController)
+     * Enhanced payment confirmation for all payment methods
      */
     @PostMapping("/{orderId}/confirmPayment/stripe")
     public ResponseEntity<?> confirmStripePayment(@PathVariable Long orderId,
@@ -411,7 +476,7 @@ public class OrderController {
     }
 
     /**
-     * Mobile payment confirmation endpoint
+     * Mobile payment confirmation endpoint (legacy support)
      */
     @PostMapping("/{orderId}/confirmPayment/mobile")
     public ResponseEntity<?> confirmMobilePayment(@PathVariable Long orderId,
@@ -462,6 +527,14 @@ public class OrderController {
      */
     private Map<String, Object> getMethodsList(Map<String, Object> capabilities) {
         Map<String, Object> methods = new HashMap<>();
+
+        // ExpressCheckout - Primary recommendation
+        methods.put("express_checkout", Map.of(
+                "available", true,
+                "name", "Express Checkout",
+                "description", "Apple Pay, Google Pay, Link, and more",
+                "recommended", true
+        ));
 
         // Always available
         methods.put("card", Map.of(

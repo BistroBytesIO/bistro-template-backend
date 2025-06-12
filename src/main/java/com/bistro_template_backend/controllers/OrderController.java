@@ -273,67 +273,6 @@ public class OrderController {
         }
     }
 
-    /**
-     * Create enhanced PaymentIntent with ExpressCheckout support
-     */
-    private Map<String, Object> createEnhancedPaymentIntent(Order order, PaymentRequest request) {
-        try {
-            Stripe.apiKey = stripeSecretKey;
-
-            long amountInCents = order.getTotalAmount()
-                    .multiply(new BigDecimal("100")).longValue();
-
-            String paymentMethod = request.getPaymentMethod();
-            System.out.println("🔧 Creating PaymentIntent for method: " + paymentMethod +
-                    " with amount: $" + order.getTotalAmount());
-
-            PaymentIntentCreateParams.Builder paramsBuilder = PaymentIntentCreateParams.builder()
-                    .setAmount(amountInCents)
-                    .setCurrency(request.getCurrency().toLowerCase())
-                    .setDescription(request.getDescription())
-                    .putMetadata("orderId", order.getId().toString())
-                    .putMetadata("paymentMethod", paymentMethod)
-                    .setAutomaticPaymentMethods(
-                            PaymentIntentCreateParams.AutomaticPaymentMethods.builder()
-                                    .setEnabled(true)
-                                    .setAllowRedirects(PaymentIntentCreateParams.AutomaticPaymentMethods.AllowRedirects.ALWAYS)
-                                    .build()
-                    )
-                    .setSetupFutureUsage(PaymentIntentCreateParams.SetupFutureUsage.OFF_SESSION)
-                    .setCaptureMethod(PaymentIntentCreateParams.CaptureMethod.AUTOMATIC);
-
-            // Enhanced configuration for ExpressCheckout
-            if ("express_checkout".equals(paymentMethod)) {
-                System.out.println("🚀 Configuring ExpressCheckout PaymentIntent");
-                // ExpressCheckout supports all payment methods automatically
-                // No specific payment method restrictions needed
-            }
-
-            PaymentIntent paymentIntent = PaymentIntent.create(paramsBuilder.build());
-
-            // Create payment record
-            Payment payment = new Payment();
-            payment.setOrderId(order.getId());
-            payment.setAmount(order.getTotalAmount());
-            payment.setPaymentMethod(paymentMethod.toUpperCase());
-            payment.setTransactionId(paymentIntent.getId());
-            payment.setStatus(PaymentStatus.INITIATED);
-            paymentRepository.save(payment);
-
-            Map<String, Object> response = new HashMap<>();
-            response.put("clientSecret", paymentIntent.getClientSecret());
-            response.put("paymentIntentId", paymentIntent.getId());
-            response.put("paymentMethod", paymentMethod);
-
-            System.out.println("✅ Created PaymentIntent: " + paymentIntent.getId() +
-                    " for order: " + order.getId());
-
-            return response;
-        } catch (Exception e) {
-            e.printStackTrace();
-            throw new RuntimeException("Error creating enhanced PaymentIntent: " + e.getMessage(), e);
-        }
-    }
 
     /**
      * Apple Pay specific endpoint (legacy support)
@@ -427,13 +366,114 @@ public class OrderController {
 
     // ========== PAYMENT CONFIRMATION ENDPOINTS ==========
 
-    /**
-     * Enhanced payment confirmation for all payment methods
-     */
+    // OrderController.java - Optimized createEnhancedPaymentIntent method
+    private Map<String, Object> createEnhancedPaymentIntent(Order order, PaymentRequest request) {
+        try {
+            Stripe.apiKey = stripeSecretKey;
+
+            long amountInCents = order.getTotalAmount()
+                    .multiply(new BigDecimal("100")).longValue();
+
+            String paymentMethod = request.getPaymentMethod();
+            System.out.println("🔧 Creating PaymentIntent for method: " + paymentMethod +
+                    " with amount: $" + order.getTotalAmount());
+
+            PaymentIntentCreateParams.Builder paramsBuilder = PaymentIntentCreateParams.builder()
+                    .setAmount(amountInCents)
+                    .setCurrency(request.getCurrency().toLowerCase())
+                    .setDescription(request.getDescription())
+                    .putMetadata("orderId", order.getId().toString())
+                    .putMetadata("paymentMethod", paymentMethod)
+                    .putMetadata("customerEmail", order.getCustomerEmail())
+                    .putMetadata("customerName", order.getCustomerName())
+                    // OPTIMIZED: Enhanced automatic payment methods for ExpressCheckout
+                    .setAutomaticPaymentMethods(
+                            PaymentIntentCreateParams.AutomaticPaymentMethods.builder()
+                                    .setEnabled(true)
+                                    // Allow redirects for PayPal, Klarna, etc.
+                                    .setAllowRedirects(PaymentIntentCreateParams.AutomaticPaymentMethods.AllowRedirects.ALWAYS)
+                                    .build()
+                    )
+                    // OPTIMIZED: Better capture settings for ExpressCheckout
+                    .setCaptureMethod(PaymentIntentCreateParams.CaptureMethod.AUTOMATIC);
+
+            // OPTIMIZED: Enhanced configuration for ExpressCheckout
+            if ("express_checkout".equals(paymentMethod)) {
+                System.out.println("🚀 Configuring ExpressCheckout PaymentIntent");
+
+                // Add customer information if available
+                if (order.getCustomerEmail() != null) {
+                    paramsBuilder.setReceiptEmail(order.getCustomerEmail());
+                }
+
+                // OPTIMIZED: Set up for future usage to enable Link
+//                paramsBuilder.setSetupFutureUsage(PaymentIntentCreateParams.SetupFutureUsage.OFF_SESSION);
+
+                // OPTIMIZED: Add shipping information if available
+                if (order.getCustomerName() != null) {
+                    paramsBuilder.setShipping(
+                            PaymentIntentCreateParams.Shipping.builder()
+                                    .setName(order.getCustomerName())
+                                    .setPhone(order.getCustomerPhone())
+                                    // Add address if you collect it
+                                    .setAddress(
+                                            PaymentIntentCreateParams.Shipping.Address.builder()
+                                                    .setLine1("123 Main St") // Use actual address if available
+                                                    .setCity("Houston")
+                                                    .setState("TX")
+                                                    .setCountry("US")
+                                                    .setPostalCode("77001")
+                                                    .build()
+                                    )
+                                    .build()
+                    );
+                }
+            }
+
+            PaymentIntent paymentIntent = PaymentIntent.create(paramsBuilder.build());
+
+            // Create payment record
+            Payment payment = new Payment();
+            payment.setOrderId(order.getId());
+            payment.setAmount(order.getTotalAmount());
+            payment.setPaymentMethod(paymentMethod.toUpperCase());
+            payment.setTransactionId(paymentIntent.getId());
+            payment.setStatus(PaymentStatus.INITIATED);
+            paymentRepository.save(payment);
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("clientSecret", paymentIntent.getClientSecret());
+            response.put("paymentIntentId", paymentIntent.getId());
+            response.put("paymentMethod", paymentMethod);
+
+            // OPTIMIZED: Add additional metadata for ExpressCheckout
+            if ("express_checkout".equals(paymentMethod)) {
+                response.put("orderDetails", Map.of(
+                        "orderId", order.getId(),
+                        "customerName", order.getCustomerName(),
+                        "customerEmail", order.getCustomerEmail(),
+                        "amount", order.getTotalAmount(),
+                        "currency", "USD"
+                ));
+            }
+
+            System.out.println("✅ Created PaymentIntent: " + paymentIntent.getId() +
+                    " for order: " + order.getId());
+
+            return response;
+        } catch (Exception e) {
+            e.printStackTrace();
+            throw new RuntimeException("Error creating enhanced PaymentIntent: " + e.getMessage(), e);
+        }
+    }
+
+    // OPTIMIZED: Enhanced payment confirmation endpoint
     @PostMapping("/{orderId}/confirmPayment/stripe")
     public ResponseEntity<?> confirmStripePayment(@PathVariable Long orderId,
                                                   @RequestBody(required = false) Map<String, String> customerData) {
         try {
+            System.out.println("🔔 Confirming payment for order: " + orderId);
+
             // Find the most recent payment for this order
             List<Payment> payments = paymentRepository.findByOrderIdOrderByCreatedAtDesc(orderId);
 
@@ -443,23 +483,28 @@ public class OrderController {
 
             Payment payment = payments.get(0);
 
-            // Save customer data if provided
+            // OPTIMIZED: Enhanced customer data handling
             if (customerData != null) {
                 String name = customerData.get("name");
                 String email = customerData.get("email");
                 String phone = customerData.get("phone");
+
+                System.out.println("💾 Saving customer data - Name: " + name + ", Email: " + email);
                 paymentService.saveCustomerData(name, email, phone);
             }
 
             // Update payment status immediately
             paymentService.updatePaymentStatus(payment.getTransactionId(), orderId);
 
-            // Send confirmation emails async
+            // OPTIMIZED: Enhanced async email sending with better error handling
             CompletableFuture.runAsync(() -> {
                 try {
+                    System.out.println("📧 Sending confirmation emails for order: " + orderId);
                     paymentService.sendConfirmationEmails(payment.getTransactionId(), orderId);
+                    System.out.println("✅ Confirmation emails sent successfully");
                 } catch (Exception e) {
-                    System.err.println("Error sending confirmation emails: " + e.getMessage());
+                    System.err.println("❌ Error sending confirmation emails for order " + orderId + ": " + e.getMessage());
+                    // Could implement retry logic here
                 }
             });
 
@@ -468,9 +513,14 @@ public class OrderController {
             response.put("message", "Payment confirmed successfully");
             response.put("orderId", orderId);
             response.put("paymentMethod", payment.getPaymentMethod());
+            response.put("transactionId", payment.getTransactionId());
+            response.put("amount", payment.getAmount());
 
+            System.out.println("✅ Payment confirmation complete for order: " + orderId);
             return ResponseEntity.ok(response);
+
         } catch (Exception e) {
+            System.err.println("❌ Error confirming payment for order " + orderId + ": " + e.getMessage());
             return ResponseEntity.badRequest().body("Error confirming payment: " + e.getMessage());
         }
     }

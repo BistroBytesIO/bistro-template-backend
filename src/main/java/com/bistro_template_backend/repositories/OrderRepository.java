@@ -3,6 +3,8 @@ package com.bistro_template_backend.repositories;
 import com.bistro_template_backend.models.Order;
 import com.bistro_template_backend.models.OrderStatus;
 import com.bistro_template_backend.models.PaymentStatus;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -17,6 +19,15 @@ import java.util.Map;
 @Repository
 public interface OrderRepository extends JpaRepository<Order, Long> {
     List<Order> findByStatusAndPaymentStatusOrderByIdDesc(OrderStatus status, PaymentStatus paymentStatus);
+
+    // NEW: Find all paid orders (regardless of status) ordered by ID descending
+    List<Order> findByPaymentStatusOrderByIdDesc(PaymentStatus paymentStatus);
+
+    // NEW: Paginated version for past orders
+    Page<Order> findByStatusAndPaymentStatus(OrderStatus status, PaymentStatus paymentStatus, Pageable pageable);
+
+    // NEW: Find all orders ordered by ID descending
+    List<Order> findAllByOrderByIdDesc();
 
     // Count orders after a given datetime
     @Query("SELECT COUNT(o) FROM Order o WHERE o.orderDate >= :date")

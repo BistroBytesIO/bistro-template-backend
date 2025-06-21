@@ -32,4 +32,6 @@ public interface MenuItemRepository extends JpaRepository<MenuItem, Long> {
                     "ORDER BY revenue DESC",
             nativeQuery = true)
     List<Map<String, Object>> getCategoryPerformance();
+
+    List<MenuItem> findByIsRewardItemTrueOrderByPointsToRedeemAsc();
 }

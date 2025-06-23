@@ -4,6 +4,7 @@ import com.bistro_template_backend.dto.PaymentRequest;
 import com.bistro_template_backend.models.*;
 import com.bistro_template_backend.repositories.*;
 import jakarta.mail.MessagingException;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -20,8 +21,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 
 @Service
+@Slf4j
 public class PaymentService {
 
     @Autowired
@@ -50,6 +53,12 @@ public class PaymentService {
 
     @Autowired
     WebSocketOrderService webSocketOrderService;
+
+    @Autowired
+    CognitoService cognitoService;
+
+    @Autowired
+    RewardsService rewardsService;
 
     // Read your Stripe secret key from application.yml or env var
     @Value("${stripe.secretKey}")
@@ -117,6 +126,9 @@ public class PaymentService {
         order.setPaymentStatus(PaymentStatus.PAID);
         orderRepository.save(order);
 
+        // Award points if customer is authenticated
+        awardPointsForCompletedOrder(orderId);
+
         // **NEW: Send WebSocket notification for new paid order**
         webSocketOrderService.notifyNewOrder(order);
 
@@ -139,6 +151,33 @@ public class PaymentService {
 
                 customerRepository.save(customer);
             }
+        }
+    }
+
+    /**
+     * Award points for completed order if customer is authenticated
+     */
+    private void awardPointsForCompletedOrder(Long orderId) {
+        try {
+            // Check if there's an authenticated customer
+            String cognitoUserId = cognitoService.getCurrentCognitoUserId();
+            if (cognitoUserId != null) {
+                // Get customer account
+                CustomerAccount account = cognitoService.getCurrentCustomerAccount();
+                if (account != null) {
+                    // Award points asynchronously to avoid blocking payment completion
+                    CompletableFuture.runAsync(() -> {
+                        try {
+                            rewardsService.awardPointsForOrder(account.getId(), orderId);
+                            log.info("Points awarded for order {} to customer {}", orderId, account.getEmail());
+                        } catch (Exception e) {
+                            log.error("Error awarding points for order {}: {}", orderId, e.getMessage(), e);
+                        }
+                    });
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Could not award points for order {} - customer may not be authenticated: {}", orderId, e.getMessage());
         }
     }
 

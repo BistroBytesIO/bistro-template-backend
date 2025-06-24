@@ -11,6 +11,7 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.util.StringUtils;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -39,8 +40,14 @@ public class CognitoService {
      */
     public String getCurrentCognitoUserId() {
         try {
-            Jwt jwt = (Jwt) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-            return jwt.getSubject();
+            Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+            if (principal instanceof Jwt) {
+                Jwt jwt = (Jwt) principal;
+                return jwt.getClaimAsString("sub");
+            } else {
+                // Principal is not a JWT (e.g., admin authentication), so no Cognito user ID
+                return null;
+            }
         } catch (Exception e) {
             log.warn("Could not get current Cognito user ID: {}", e.getMessage());
             return null;
@@ -52,8 +59,14 @@ public class CognitoService {
      */
     public String getCurrentUserEmail() {
         try {
-            Jwt jwt = (Jwt) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-            return jwt.getClaimAsString("email");
+            Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+            if (principal instanceof Jwt) {
+                Jwt jwt = (Jwt) principal;
+                return jwt.getClaimAsString("email");
+            } else {
+                // Principal is not a JWT (e.g., admin authentication), so no email from JWT
+                return null;
+            }
         } catch (Exception e) {
             log.warn("Could not get current user email: {}", e.getMessage());
             return null;
@@ -66,8 +79,14 @@ public class CognitoService {
      */
     public CustomerAccount getCurrentCustomerAccount() {
         try {
-            Jwt jwt = (Jwt) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-            String cognitoUserId = jwt.getSubject();
+            Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+            if (!(principal instanceof Jwt)) {
+                // Not a JWT principal, return null
+                return null;
+            }
+            
+            Jwt jwt = (Jwt) principal;
+            String cognitoUserId = jwt.getClaimAsString("sub");
             String email = jwt.getClaimAsString("email");
 
             // Retry logic for handling race conditions
@@ -185,7 +204,7 @@ public class CognitoService {
      */
     private CustomerAccount createAccountFromJwt(Jwt jwt) {
         CustomerAccount account = new CustomerAccount();
-        account.setCognitoUserId(jwt.getSubject());
+        account.setCognitoUserId(jwt.getClaimAsString("sub"));
         account.setEmail(jwt.getClaimAsString("email"));
         account.setFirstName(jwt.getClaimAsString("given_name"));
         account.setLastName(jwt.getClaimAsString("family_name"));

@@ -57,11 +57,11 @@ public class SecurityConfig {
     @Order(2)
     public SecurityFilterChain customerSecurityFilterChain(HttpSecurity http) throws Exception {
         http
-                .securityMatcher("/api/auth/me", "/api/rewards/**")
+                .securityMatcher("/api/auth/me", "/api/rewards/**", "/api/orders/**")
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/auth/me", "/api/rewards/**").authenticated()
+                        .requestMatchers("/api/auth/me", "/api/rewards/**", "/api/orders/**").authenticated()
                 )
                 .oauth2ResourceServer(oauth2 -> oauth2
                         .jwt(jwt -> jwt.decoder(jwtDecoder()))

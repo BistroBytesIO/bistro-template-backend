@@ -56,27 +56,6 @@ public class RewardsController {
         }
     }
 
-    /**
-     * Redeems points for a discount
-     */
-    @PostMapping("/redeem/discount")
-    public ResponseEntity<?> redeemForDiscount(@RequestBody Map<String, Integer> request) {
-        try {
-            CustomerAccount account = cognitoService.getCurrentCustomerAccount();
-            Integer pointsToRedeem = request.get("points");
-
-            if (pointsToRedeem == null || pointsToRedeem <= 0) {
-                return ResponseEntity.badRequest().body(Map.of("error", "Invalid points amount"));
-            }
-
-            Map<String, Object> result = rewardsService.redeemPointsForDiscount(account.getId(), pointsToRedeem);
-            return ResponseEntity.ok(result);
-
-        } catch (Exception e) {
-            log.error("Error redeeming points for discount: {}", e.getMessage(), e);
-            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
-        }
-    }
 
     /**
      * Gets available menu items that can be redeemed with points
@@ -126,6 +105,58 @@ public class RewardsController {
 
         } catch (Exception e) {
             log.error("Error getting rewards analytics: {}", e.getMessage(), e);
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    /**
+     * Gets list of redeemed rewards for the customer
+     */
+    @GetMapping("/redeemed")
+    public ResponseEntity<?> getRedeemedRewards() {
+        try {
+            CustomerAccount account = cognitoService.getCurrentCustomerAccount();
+            return ResponseEntity.ok(rewardsService.getRedeemedRewards(account.getId()));
+
+        } catch (Exception e) {
+            log.error("Error getting redeemed rewards: {}", e.getMessage(), e);
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    /**
+     * Uses a redeemed reward (decrements available quantity)
+     */
+    @PostMapping("/use")
+    public ResponseEntity<?> useRedeemedReward(@RequestBody Map<String, Long> request) {
+        try {
+            CustomerAccount account = cognitoService.getCurrentCustomerAccount();
+            Long redeemedItemId = request.get("redeemedItemId");
+
+            if (redeemedItemId == null) {
+                return ResponseEntity.badRequest().body(Map.of("error", "Redeemed item ID is required"));
+            }
+
+            return ResponseEntity.ok(rewardsService.useRedeemedReward(account.getId(), redeemedItemId));
+
+        } catch (Exception e) {
+            log.error("Error using redeemed reward: {}", e.getMessage(), e);
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    /**
+     * Returns a redeemed reward item back to the available pool
+     */
+    @PostMapping("/return/{redeemedItemId}")
+    public ResponseEntity<?> returnRewardItem(@PathVariable Long redeemedItemId) {
+        try {
+            CustomerAccount account = cognitoService.getCurrentCustomerAccount();
+            rewardsService.returnRewardItem(account.getId(), redeemedItemId);
+            return ResponseEntity.ok(Map.of("success", true, "message", "Reward item returned successfully"));
+
+        } catch (Exception e) {
+            log.error("Error returning reward item: {}", e.getMessage(), e);
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
     }

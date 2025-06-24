@@ -27,5 +27,7 @@ public class OrderItem {
     private BigDecimal itemPrice;
     // The price at the time of ordering, so changing menu price doesn’t retroactively change old orders.
 
+    @Column(name = "is_reward_item")
+    private boolean isRewardItem;
 
 }

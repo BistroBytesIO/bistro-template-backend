@@ -29,6 +29,9 @@ public class RewardsService {
     @Autowired
     private MenuItemRepository menuItemRepository;
 
+    @Autowired
+    private RedeemedRewardRepository redeemedRewardRepository;
+
     @Value("${rewards.points.per.dollar:5}")
     private int pointsPerDollar;
 
@@ -159,12 +162,17 @@ public class RewardsService {
                     " points but only have " + account.getAvailableRewardPoints());
         }
 
-        // Generate redemption code
-        String redemptionCode = generateRedemptionCode();
-
         // Update account
         account.setAvailableRewardPoints(account.getAvailableRewardPoints() - pointsNeeded);
         customerAccountRepository.save(account);
+
+        // Store the redeemed reward
+        RedeemedReward redeemedReward = new RedeemedReward();
+        redeemedReward.setCustomerAccountId(customerAccountId);
+        redeemedReward.setMenuItemId(menuItemId);
+        redeemedReward.setQuantityAvailable(1);
+        redeemedReward.setPointsRedeemed(pointsNeeded);
+        redeemedRewardRepository.save(redeemedReward);
 
         // Record transaction
         RewardTransaction transaction = new RewardTransaction();
@@ -173,69 +181,25 @@ public class RewardsService {
         transaction.setPointsAmount(-pointsNeeded);
         transaction.setDollarAmount(menuItem.getPrice());
         transaction.setDescription("Redeemed points for free " + menuItem.getName());
-        transaction.setReferenceId(redemptionCode);
         rewardTransactionRepository.save(transaction);
 
         Map<String, Object> result = new HashMap<>();
-        result.put("redemptionCode", redemptionCode);
         result.put("pointsRedeemed", pointsNeeded);
         result.put("menuItem", Map.of(
                 "id", menuItem.getId(),
                 "name", menuItem.getName(),
-                "price", menuItem.getPrice()
+                "description", menuItem.getDescription(),
+                "imageUrl", menuItem.getImageUrl(),
+                "quantityAvailable", 1
         ));
         result.put("remainingPoints", account.getAvailableRewardPoints());
 
-        log.info("Customer {} redeemed {} points for free {} (code: {})",
-                account.getEmail(), pointsNeeded, menuItem.getName(), redemptionCode);
+        log.info("Customer {} redeemed {} points for free {}",
+                account.getEmail(), pointsNeeded, menuItem.getName());
 
         return result;
     }
 
-    /**
-     * Redeems points for a discount
-     */
-    @Transactional
-    public Map<String, Object> redeemPointsForDiscount(Long customerAccountId, int pointsToRedeem) {
-        CustomerAccount account = customerAccountRepository.findById(customerAccountId)
-                .orElseThrow(() -> new RuntimeException("Customer account not found"));
-
-        if (account.getAvailableRewardPoints() < pointsToRedeem) {
-            throw new RuntimeException("Insufficient points available. You have " +
-                    account.getAvailableRewardPoints() + " points, but need " + pointsToRedeem);
-        }
-
-        // Calculate dollar value (100 points = $1.00)
-        BigDecimal dollarValue = new BigDecimal(pointsToRedeem).divide(new BigDecimal(100), 2, RoundingMode.HALF_UP);
-
-        // Generate redemption code
-        String redemptionCode = generateRedemptionCode();
-
-        // Update account
-        account.setAvailableRewardPoints(account.getAvailableRewardPoints() - pointsToRedeem);
-        customerAccountRepository.save(account);
-
-        // Record transaction
-        RewardTransaction transaction = new RewardTransaction();
-        transaction.setCustomerAccountId(customerAccountId);
-        transaction.setTransactionType("REDEEMED");
-        transaction.setPointsAmount(-pointsToRedeem); // Negative for redemption
-        transaction.setDollarAmount(dollarValue);
-        transaction.setDescription("Redeemed points for $" + dollarValue + " discount");
-        transaction.setReferenceId(redemptionCode);
-        rewardTransactionRepository.save(transaction);
-
-        Map<String, Object> result = new HashMap<>();
-        result.put("redemptionCode", redemptionCode);
-        result.put("pointsRedeemed", pointsToRedeem);
-        result.put("dollarValue", dollarValue);
-        result.put("remainingPoints", account.getAvailableRewardPoints());
-
-        log.info("Customer {} redeemed {} points for ${} (code: {})",
-                account.getEmail(), pointsToRedeem, dollarValue, redemptionCode);
-
-        return result;
-    }
 
     /**
      * Gets available menu items that can be redeemed with points
@@ -326,6 +290,79 @@ public class RewardsService {
                 .count());
 
         return analytics;
+    }
+
+    /**
+     * Gets list of redeemed rewards for the customer
+     */
+    public List<Map<String, Object>> getRedeemedRewards(Long customerAccountId) {
+        List<RedeemedReward> redeemedRewards = redeemedRewardRepository.findByCustomerAccountIdOrderByDateRedeemedDesc(customerAccountId);
+
+        return redeemedRewards.stream()
+                .map(reward -> {
+                    MenuItem menuItem = menuItemRepository.findById(reward.getMenuItemId())
+                            .orElse(null);
+                    if (menuItem == null) {
+                        return null;
+                    }
+
+                    Map<String, Object> rewardData = new HashMap<>();
+                    rewardData.put("id", reward.getId());
+                    rewardData.put("itemId", menuItem.getId());
+                    rewardData.put("name", menuItem.getName());
+                    rewardData.put("description", menuItem.getDescription());
+                    rewardData.put("imageUrl", menuItem.getImageUrl());
+                    rewardData.put("price", menuItem.getPrice());
+                    rewardData.put("quantityAvailable", reward.getQuantityAvailable());
+                    rewardData.put("dateRedeemed", reward.getDateRedeemed());
+                    return rewardData;
+                })
+                .filter(Objects::nonNull)
+                .toList();
+    }
+
+    /**
+     * Uses a redeemed reward (decrements available quantity)
+     */
+    @Transactional
+    public List<Map<String, Object>> useRedeemedReward(Long customerAccountId, Long redeemedItemId) {
+        RedeemedReward redeemedReward = redeemedRewardRepository.findById(redeemedItemId)
+                .orElseThrow(() -> new RuntimeException("Redeemed reward not found"));
+
+        if (!redeemedReward.getCustomerAccountId().equals(customerAccountId)) {
+            throw new RuntimeException("This reward does not belong to you");
+        }
+
+        if (redeemedReward.getQuantityAvailable() <= 0) {
+            throw new RuntimeException("This reward is no longer available");
+        }
+
+        redeemedReward.setQuantityAvailable(redeemedReward.getQuantityAvailable() - 1);
+        redeemedRewardRepository.save(redeemedReward);
+
+        log.info("Customer {} used redeemed reward {} (remaining quantity: {})",
+                customerAccountId, redeemedItemId, redeemedReward.getQuantityAvailable());
+
+        return getRedeemedRewards(customerAccountId);
+    }
+
+    /**
+     * Returns a redeemed reward item back to the available pool
+     */
+    @Transactional
+    public void returnRewardItem(Long customerAccountId, Long redeemedItemId) {
+        RedeemedReward redeemedReward = redeemedRewardRepository.findById(redeemedItemId)
+                .orElseThrow(() -> new RuntimeException("Redeemed reward not found"));
+
+        if (!redeemedReward.getCustomerAccountId().equals(customerAccountId)) {
+            throw new RuntimeException("This reward does not belong to you");
+        }
+
+        redeemedReward.setQuantityAvailable(redeemedReward.getQuantityAvailable() + 1);
+        redeemedRewardRepository.save(redeemedReward);
+
+        log.info("Customer {} returned redeemed reward {} (available quantity: {})",
+                customerAccountId, redeemedItemId, redeemedReward.getQuantityAvailable());
     }
 
     private BigDecimal calculateDollarValue(int points) {

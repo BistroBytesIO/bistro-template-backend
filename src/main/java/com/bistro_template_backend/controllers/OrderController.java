@@ -13,6 +13,7 @@ import com.bistro_template_backend.services.PaymentService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import jakarta.validation.Valid;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -108,7 +109,7 @@ public class OrderController {
     // ========== ORDER MANAGEMENT ENDPOINTS ==========
 
     @PostMapping
-    public Order createOrder(@RequestBody CreateOrderRequest request) {
+    public Order createOrder(@Valid @RequestBody CreateOrderRequest request) {
         // 1. Create a new Order
         Order newOrder = new Order();
         newOrder.setOrderDate(LocalDateTime.now());
@@ -132,14 +133,17 @@ public class OrderController {
                 orderItem.setOrderId(newOrder.getId());
                 orderItem.setMenuItemId(cartItem.getMenuItemId());
                 orderItem.setQuantity(cartItem.getQuantity());
+                orderItem.setRewardItem(cartItem.isRewardItem()); // Add this field to OrderItem entity
 
                 // Use price from the cart or look up in your MenuItem table
                 BigDecimal itemPrice = cartItem.getPriceAtOrderTime();
                 orderItem.setItemPrice(itemPrice);
 
-                // Accumulate subtotal
-                BigDecimal itemTotal = itemPrice.multiply(BigDecimal.valueOf(cartItem.getQuantity()));
-                subtotal = subtotal.add(itemTotal);
+                // Only add to subtotal if it's not a reward item
+                if (!cartItem.isRewardItem()) {
+                    BigDecimal itemTotal = itemPrice.multiply(BigDecimal.valueOf(cartItem.getQuantity()));
+                    subtotal = subtotal.add(itemTotal);
+                }
 
                 // Save each OrderItem
                 orderItemRepository.save(orderItem);
@@ -229,7 +233,7 @@ public class OrderController {
      */
     @PostMapping("/{orderId}/pay/stripe")
     public ResponseEntity<?> initiateStripePayment(@PathVariable Long orderId,
-                                                   @RequestBody PaymentRequest request) {
+                                                   @Valid @RequestBody PaymentRequest request) {
         try {
             Order order = orderRepository.findById(orderId)
                     .orElseThrow(() -> new RuntimeException("Order not found"));
@@ -257,7 +261,7 @@ public class OrderController {
                         result.put("message", "Using existing payment intent");
                         return ResponseEntity.ok(result);
                     } catch (Exception e) {
-                        System.err.println("❌ Error retrieving existing PaymentIntent: " + e.getMessage());
+                        System.err.println("❌ Error retrieving existing PaymentIntent: [REDACTED]");
                         // Fall through to create new payment intent
                     }
                 }
@@ -337,7 +341,7 @@ public class OrderController {
 
                         return ResponseEntity.ok(result);
                     } catch (Exception e) {
-                        System.err.println("❌ Error retrieving existing PaymentIntent: " + e.getMessage());
+                        System.err.println("❌ Error retrieving existing PaymentIntent: [REDACTED]");
                         // Fall through to create new payment intent
                     }
                 }
@@ -354,12 +358,11 @@ public class OrderController {
                     .getMobilePaymentConfig(orderId.toString(), "google_pay");
             result.put("config", googlePayConfig);
 
-            System.out.println("✅ Created new Google Pay PaymentIntent for order: " + orderId +
-                    " with amount: $" + order.getTotalAmount());
+            System.out.println("✅ Created new Google Pay PaymentIntent for order: " + orderId);
 
             return ResponseEntity.ok(result);
         } catch (Exception e) {
-            System.err.println("❌ Error initiating Google Pay for order " + orderId + ": " + e.getMessage());
+            System.err.println("❌ Error initiating Google Pay for order " + orderId + ": [REDACTED]");
             return ResponseEntity.badRequest().body("Error initiating Google Pay: " + e.getMessage());
         }
     }
@@ -375,8 +378,7 @@ public class OrderController {
                     .multiply(new BigDecimal("100")).longValue();
 
             String paymentMethod = request.getPaymentMethod();
-            System.out.println("🔧 Creating PaymentIntent for method: " + paymentMethod +
-                    " with amount: $" + order.getTotalAmount());
+            System.out.println("🔧 Creating PaymentIntent for method: " + paymentMethod);
 
             PaymentIntentCreateParams.Builder paramsBuilder = PaymentIntentCreateParams.builder()
                     .setAmount(amountInCents)
@@ -457,8 +459,7 @@ public class OrderController {
                 ));
             }
 
-            System.out.println("✅ Created PaymentIntent: " + paymentIntent.getId() +
-                    " for order: " + order.getId());
+            System.out.println("✅ Created PaymentIntent for order: " + order.getId());
 
             return response;
         } catch (Exception e) {
@@ -489,7 +490,7 @@ public class OrderController {
                 String email = customerData.get("email");
                 String phone = customerData.get("phone");
 
-                System.out.println("💾 Saving customer data - Name: " + name + ", Email: " + email);
+                System.out.println("💾 Saving customer data for order: " + orderId);
                 paymentService.saveCustomerData(name, email, phone);
             }
 
@@ -503,7 +504,7 @@ public class OrderController {
                     paymentService.sendConfirmationEmails(payment.getTransactionId(), orderId);
                     System.out.println("✅ Confirmation emails sent successfully");
                 } catch (Exception e) {
-                    System.err.println("❌ Error sending confirmation emails for order " + orderId + ": " + e.getMessage());
+                    System.err.println("❌ Error sending confirmation emails for order " + orderId + ": [REDACTED]");
                     // Could implement retry logic here
                 }
             });
@@ -520,7 +521,7 @@ public class OrderController {
             return ResponseEntity.ok(response);
 
         } catch (Exception e) {
-            System.err.println("❌ Error confirming payment for order " + orderId + ": " + e.getMessage());
+            System.err.println("❌ Error confirming payment for order " + orderId + ": [REDACTED]");
             return ResponseEntity.badRequest().body("Error confirming payment: " + e.getMessage());
         }
     }
@@ -554,7 +555,7 @@ public class OrderController {
                 try {
                     paymentService.sendConfirmationEmails(transactionId, orderId);
                 } catch (Exception e) {
-                    System.err.println("Error sending confirmation emails: " + e.getMessage());
+                    System.err.println("Error sending confirmation emails: [REDACTED]");
                 }
             });
 

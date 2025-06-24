@@ -60,7 +60,7 @@ public class JwtFilter extends OncePerRequestFilter {
             } catch (Exception e) {
                 // Log only for admin routes where we expect our tokens
                 if (isAdminRoute(requestPath)) {
-                    System.out.println("Admin JWT authentication failed: " + e.getMessage());
+                    System.out.println("Admin JWT authentication failed: [REDACTED]");
                 }
                 // Don't set authentication, let the request continue
             }

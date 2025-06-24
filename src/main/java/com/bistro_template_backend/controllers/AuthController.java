@@ -12,6 +12,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
+import jakarta.validation.Valid;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -67,32 +68,48 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestBody AuthRequest request) {
-        User user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+    public ResponseEntity<?> login(@Valid @RequestBody AuthRequest request) {
+        try {
+            User user = userRepository.findByEmail(request.getEmail())
+                    .orElse(null);
 
-        if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid credentials");
+            if (user == null || !passwordEncoder.matches(request.getPassword(), user.getPassword())) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid credentials");
+            }
+
+            // Generate JWT token
+            String token = jwtUtil.generateToken(user.getEmail(), user.getRole());
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("email", user.getEmail());
+            response.put("role", user.getRole());
+            response.put("token", token);
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Authentication service temporarily unavailable");
         }
-
-        // Generate JWT token
-        String token = jwtUtil.generateToken(user.getEmail(), user.getRole());
-
-        Map<String, Object> response = new HashMap<>();
-        response.put("email", user.getEmail());
-        response.put("role", user.getRole());
-        response.put("token", token);
-
-        return ResponseEntity.ok(response);
     }
 
     @PostMapping("/create-admin")
-    public ResponseEntity<?> createAdminUser(@RequestBody AuthRequest request) {
-        User admin = new User();
-        admin.setEmail(request.getEmail());
-        admin.setPassword(passwordEncoder.encode(request.getPassword()));
-        admin.setRole("ROLE_ADMIN");
-        userRepository.save(admin);
-        return ResponseEntity.ok("Admin user created successfully");
+    public ResponseEntity<?> createAdminUser(@Valid @RequestBody AuthRequest request) {
+        try {
+            // Check if user already exists
+            if (userRepository.findByEmail(request.getEmail()).isPresent()) {
+                return ResponseEntity.status(HttpStatus.CONFLICT)
+                        .body("User with this email already exists");
+            }
+            
+            User admin = new User();
+            admin.setEmail(request.getEmail());
+            admin.setPassword(passwordEncoder.encode(request.getPassword()));
+            admin.setRole("ROLE_ADMIN");
+            userRepository.save(admin);
+            return ResponseEntity.ok("Admin user created successfully");
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Unable to create admin user");
+        }
     }
 }

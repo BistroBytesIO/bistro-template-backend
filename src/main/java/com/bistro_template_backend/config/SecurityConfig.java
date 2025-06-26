@@ -45,6 +45,18 @@ public class SecurityConfig {
                         .requestMatchers("/api/websocket/**").permitAll()
                         .requestMatchers("/api/test/**").permitAll()
                         .requestMatchers("/actuator/**").permitAll() // Add health check endpoint
+                        // Voice AI endpoints
+                        .requestMatchers("/api/voice/**").permitAll()
+                        .requestMatchers("/api/voice/session/start").permitAll()
+                        .requestMatchers("/api/voice/session/*/process").permitAll()
+                        .requestMatchers("/api/voice/session/*/tts").permitAll()
+                        .requestMatchers("/api/voice/session/*/order").permitAll()
+                        .requestMatchers("/api/voice/session/*/finalize").permitAll()
+                        .requestMatchers("/api/voice/session/*/cancel").permitAll()
+                        .requestMatchers("/api/voice/session/*/status").permitAll()
+                        .requestMatchers("/api/voice/rate-limit-status").permitAll()
+                        .requestMatchers("/api/voice/health").permitAll()
+                        .requestMatchers("/api/voice/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
@@ -69,6 +81,8 @@ public class SecurityConfig {
                 "https://192.168.*.*:*",
                 "http://10.0.*.*:*",
                 "https://10.0.*.*:*",
+                "http://172.28.42.142:*",
+                "https://172.28.42.142:*",
                 "https://*.ngrok-free.app",
                 "https://*.ngrok.io"
         ));

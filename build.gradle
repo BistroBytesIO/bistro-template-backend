@@ -35,6 +35,26 @@ dependencies {
 	implementation 'io.jsonwebtoken:jjwt-api:0.11.5'
 	implementation 'io.jsonwebtoken:jjwt-impl:0.11.5'
 	implementation 'io.jsonwebtoken:jjwt-jackson:0.11.5'
+	
+	// OpenAI Java API
+	implementation 'com.theokanning.openai-gpt3-java:service:0.18.2'
+	// HTTP client for OpenAI API calls
+	implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+	// JSON processing
+	implementation 'com.fasterxml.jackson.core:jackson-databind'
+	// Audio processing libraries
+	implementation 'org.apache.tika:tika-core:2.9.1'
+	implementation 'org.apache.tika:tika-parsers-standard-package:2.9.1'
+	// File upload handling
+	implementation 'commons-fileupload:commons-fileupload:1.5'
+	implementation 'commons-io:commons-io:2.11.0'
+	// Rate limiting
+	implementation 'com.bucket4j:bucket4j-core:8.10.1'
+	// Caching
+	implementation 'org.springframework.boot:spring-boot-starter-cache'
+	// Validation
+	implementation 'org.springframework.boot:spring-boot-starter-validation'
+	
 	compileOnly 'org.projectlombok:lombok'
 	runtimeOnly 'org.postgresql:postgresql'
 	annotationProcessor 'org.projectlombok:lombok'

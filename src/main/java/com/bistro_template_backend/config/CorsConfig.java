@@ -15,6 +15,8 @@ public class CorsConfig implements WebMvcConfigurer {
                         "https://localhost:*",
                         "http://192.168.*.*:*",
                         "https://192.168.*.*:*",
+                        "http://172.28.42.142:*",
+                        "https://172.28.42.142:*",
                         "http://10.0.*.*:*",
                         "https://10.0.*.*:*",
                         "https://darling-treefrog-settled.ngrok-free.app",

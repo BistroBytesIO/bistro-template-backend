@@ -14,6 +14,12 @@ public interface MenuItemRepository extends JpaRepository<MenuItem, Long> {
 
     List<MenuItem> findByIsFeaturedTrue();
 
+    // Voice AI integration methods
+    List<MenuItem> findByIsAvailable(Boolean isAvailable);
+    List<MenuItem> findByCategoryAndIsAvailable(String category, Boolean isAvailable);
+    List<MenuItem> findByIsFeaturedAndIsAvailable(Boolean isFeatured, Boolean isAvailable);
+    List<MenuItem> findByNameContainingIgnoreCaseAndIsAvailable(String name, Boolean isAvailable);
+
     // Existing methods...
 
     // For low stock alerts

@@ -7,10 +7,12 @@ import com.bistro_template_backend.repositories.MenuItemRepository;
 import com.bistro_template_backend.repositories.OrderItemRepository;
 import com.bistro_template_backend.repositories.OrderRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class OrderService {
@@ -23,6 +25,10 @@ public class OrderService {
 
     @Autowired
     private MenuItemRepository menuItemRepository;
+
+    @Autowired
+    @Lazy
+    private VoiceOrderService voiceOrderService;
 
 //    @Autowired
 //    private CouponRepository couponRepository; // optional, if you have coupons
@@ -110,6 +116,49 @@ public class OrderService {
                 menuItem.setStockQuantity(newQty);
                 menuItemRepository.save(menuItem);
             }
+        }
+    }
+
+    /**
+     * Create order from voice session - Integration point for voice ordering
+     */
+    public Order createOrderFromVoiceSession(String sessionId, String customerName, 
+                                           String customerPhone, String paymentMethod) {
+        try {
+            // Use VoiceOrderService to create the order
+            Long orderId = voiceOrderService.createOrderFromVoiceSession(sessionId, 
+                    Map.of(
+                        "customerName", customerName != null ? customerName : "",
+                        "customerPhone", customerPhone != null ? customerPhone : "",
+                        "paymentMethod", paymentMethod != null ? paymentMethod : ""
+                    ));
+            
+            // Return the created order
+            return orderRepository.findById(orderId)
+                    .orElseThrow(() -> new RuntimeException("Order not found after creation"));
+                    
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to create order from voice session: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Validate voice order before finalizing
+     */
+    public List<String> validateVoiceOrder(String sessionId) {
+        VoiceOrderService.ValidationResult result = voiceOrderService.validateVoiceOrder(sessionId);
+        return result.getErrors();
+    }
+
+    /**
+     * Check if voice session has valid order for processing
+     */
+    public boolean canProcessVoiceOrder(String sessionId) {
+        try {
+            VoiceOrderService.ValidationResult result = voiceOrderService.validateVoiceOrder(sessionId);
+            return result.isValid();
+        } catch (Exception e) {
+            return false;
         }
     }
 }

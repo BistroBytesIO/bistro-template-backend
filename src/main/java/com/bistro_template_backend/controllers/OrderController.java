@@ -1,6 +1,7 @@
 package com.bistro_template_backend.controllers;
 
 import com.bistro_template_backend.dto.CreateOrderRequest;
+import com.bistro_template_backend.dto.PaymentConfirmationRequest;
 import com.bistro_template_backend.dto.PaymentRequest;
 import com.bistro_template_backend.models.*;
 import com.bistro_template_backend.repositories.CustomizationRepository;
@@ -21,6 +22,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
 import com.stripe.Stripe;
 import com.stripe.model.PaymentIntent;
 import com.stripe.param.PaymentIntentCreateParams;
@@ -133,7 +135,9 @@ public class OrderController {
                 orderItem.setOrderId(newOrder.getId());
                 orderItem.setMenuItemId(cartItem.getMenuItemId());
                 orderItem.setQuantity(cartItem.getQuantity());
-                orderItem.setRewardItem(cartItem.isRewardItem()); // Add this field to OrderItem entity
+                orderItem.setRewardItem(cartItem.isRewardItem());
+                orderItem.setOriginalPrice(cartItem.getOriginalPrice());
+                orderItem.setItemName(cartItem.getName());
 
                 // Use price from the cart or look up in your MenuItem table
                 BigDecimal itemPrice = cartItem.getPriceAtOrderTime();
@@ -471,7 +475,7 @@ public class OrderController {
     // OPTIMIZED: Enhanced payment confirmation endpoint
     @PostMapping("/{orderId}/confirmPayment/stripe")
     public ResponseEntity<?> confirmStripePayment(@PathVariable Long orderId,
-                                                  @RequestBody(required = false) Map<String, String> customerData) {
+                                                  @RequestBody(required = false) PaymentConfirmationRequest request) {
         try {
             System.out.println("🔔 Confirming payment for order: " + orderId);
 
@@ -485,13 +489,18 @@ public class OrderController {
             Payment payment = payments.get(0);
 
             // OPTIMIZED: Enhanced customer data handling
-            if (customerData != null) {
-                String name = customerData.get("name");
-                String email = customerData.get("email");
-                String phone = customerData.get("phone");
+            if (request != null) {
+                String name = request.getName();
+                String email = request.getEmail();
+                String phone = request.getPhone();
 
                 System.out.println("💾 Saving customer data for order: " + orderId);
                 paymentService.saveCustomerData(name, email, phone);
+
+                // Update order items with accurate information if provided
+                if (request.getItems() != null && !request.getItems().isEmpty()) {
+                    updateOrderItemsFromPaymentRequest(orderId, request.getItems());
+                }
             }
 
             // Update payment status immediately
@@ -609,5 +618,47 @@ public class OrderController {
         ));
 
         return methods;
+    }
+
+    /**
+     * Helper method to update order items with accurate information from payment confirmation
+     */
+    private void updateOrderItemsFromPaymentRequest(Long orderId, List<PaymentConfirmationRequest.PaymentItemDTO> paymentItems) {
+        try {
+            System.out.println("🔄 Updating order items for order: " + orderId);
+            
+            // Get existing order items
+            List<OrderItem> existingItems = orderItemRepository.findByOrderId(orderId);
+            
+            // Create a map for quick lookup
+            Map<Long, OrderItem> itemMap = existingItems.stream()
+                    .collect(Collectors.toMap(OrderItem::getMenuItemId, item -> item));
+            
+            // Update items with information from payment request
+            for (PaymentConfirmationRequest.PaymentItemDTO paymentItem : paymentItems) {
+                OrderItem existingItem = itemMap.get(paymentItem.getMenuItemId());
+                if (existingItem != null) {
+                    // Update fields that might have changed or been clarified
+                    existingItem.setRewardItem(paymentItem.isRewardItem());
+                    if (paymentItem.getOriginalPrice() != null) {
+                        existingItem.setOriginalPrice(paymentItem.getOriginalPrice());
+                    }
+                    if (paymentItem.getName() != null && !paymentItem.getName().trim().isEmpty()) {
+                        existingItem.setItemName(paymentItem.getName());
+                    }
+                    // Update the price to match what was actually charged
+                    if (paymentItem.getPrice() != null) {
+                        existingItem.setItemPrice(paymentItem.getPrice());
+                    }
+                    
+                    orderItemRepository.save(existingItem);
+                }
+            }
+            
+            System.out.println("✅ Order items updated successfully for order: " + orderId);
+        } catch (Exception e) {
+            System.err.println("❌ Error updating order items for order " + orderId + ": " + e.getMessage());
+            // Don't fail the payment confirmation if item updates fail
+        }
     }
 }

@@ -303,22 +303,26 @@ public class PaymentService {
 
         // Separate regular items from reward items
         List<OrderItem> regularItems = orderItems.stream().filter(item -> !item.isRewardItem()).toList();
-        List<OrderItem> rewardItems = orderItems.stream().filter(OrderItem::isRewardItem).toList();
+        List<OrderItem> rewardItems = orderItems.stream().filter(item -> 
+//            item.isRewardItem() &&
+            (item.getOriginalPrice() != null || 
+             item.getItemPrice().compareTo(BigDecimal.ZERO) == 0)
+        ).toList();
 
         // Add regular item details
         for (OrderItem item : regularItems) {
-            MenuItem menuItem = menuItemRepository.findById(item.getMenuItemId())
-                    .orElseThrow(() -> new RuntimeException("Menu item not found"));
+//            MenuItem menuItem = menuItemRepository.findById(item.getMenuItemId())
+//                    .orElseThrow(() -> new RuntimeException("Menu item not found for ID: " + item.getMenuItemId()));
 
             customerHtmlBody += "                    <tr>\n" +
                     "                        <td style='padding: 15px; border-bottom: 1px solid #eeeeee; width: 60%;'>\n" +
-                    "                            <span style='font-weight: bold; font-size: 16px;'>" + menuItem.getName() + "</span>\n" +
+                    "                            <span style='font-weight: bold; font-size: 16px;'>" + item.getItemName() + "</span>\n" +
                     "                        </td>\n" +
                     "                        <td style='padding: 15px; border-bottom: 1px solid #eeeeee; text-align: center;'>\n" +
                     "                            x" + item.getQuantity() + "\n" +
                     "                        </td>\n" +
                     "                        <td style='padding: 15px; border-bottom: 1px solid #eeeeee; text-align: right;'>\n" +
-                    "                            $" + String.format("%.2f", menuItem.getPrice()) + " each\n" +
+                    "                            $" + String.format("%.2f", item.getItemPrice()) + " each\n" +
                     "                        </td>\n" +
                     "                    </tr>\n";
 
@@ -348,50 +352,56 @@ public class PaymentService {
 
         customerHtmlBody += "                </table>\n";
 
-        // Add reward items section if there are any
+        // Add reward items section if there are any - ENHANCED STYLING
         if (!rewardItems.isEmpty()) {
             customerHtmlBody += "                \n" +
                     "                <!-- REWARD ITEMS -->\n" +
-                    "                <table role='presentation' width='100%' cellspacing='0' cellpadding='0' border='0' style='margin-bottom: 25px; border-collapse: separate; border-spacing: 0;'>\n" +
+                    "                <table role='presentation' width='100%' cellspacing='0' cellpadding='0' border='0' style='margin-bottom: 25px; border-collapse: separate; border-spacing: 0; border: 2px solid #28a745; border-radius: 8px; overflow: hidden;'>\n" +
                     "                    <tr>\n" +
-                    "                        <td colspan='3' style='background-color: #28a745; padding: 12px 15px; border-top-left-radius: 6px; border-top-right-radius: 6px; border-bottom: 2px solid #1e7e34;'>\n" +
-                    "                            <h3 style='margin: 0; color: #ffffff; font-size: 16px; display: flex; align-items: center;'>\n" +
-                    "                                🎁 Reward Items (FREE!)\n" +
+                    "                        <td colspan='3' style='background: linear-gradient(135deg, #28a745 0%, #20c997 100%); padding: 15px; color: white; text-align: center; position: relative;'>\n" +
+                    "                            <h3 style='margin: 0; font-size: 18px; font-weight: bold; text-shadow: 0 1px 2px rgba(0,0,0,0.2);'>\n" +
+                    "                                🎁 REWARD ITEMS - FREE WITH POINTS! 🎁\n" +
                     "                            </h3>\n" +
+                    "                            <div style='position: absolute; top: 0; right: 0; background-color: #ffc107; color: #000; padding: 4px 8px; font-size: 10px; font-weight: bold; border-bottom-left-radius: 8px;'>REDEEMED</div>\n" +
                     "                        </td>\n" +
                     "                    </tr>\n";
 
             for (OrderItem item : rewardItems) {
-                MenuItem menuItem = menuItemRepository.findById(item.getMenuItemId())
-                        .orElseThrow(() -> new RuntimeException("Menu item not found"));
+//                MenuItem menuItem = menuItemRepository.findById(item.getMenuItemId())
+//                        .orElseThrow(() -> new RuntimeException("Menu item not found for reward item ID: " + item.getMenuItemId()));
 
                 customerHtmlBody += "                    <tr>\n" +
-                        "                        <td style='padding: 15px; border-bottom: 1px solid #eeeeee; width: 60%; background-color: #f8fff9;'>\n" +
-                        "                            <span style='font-weight: bold; font-size: 16px; color: #28a745;'>" + menuItem.getName() + "</span>\n" +
-                        "                            <br><span style='font-size: 12px; color: #6c757d; font-style: italic;'>Redeemed with points</span>\n" +
+                        "                        <td style='padding: 18px 15px; border-bottom: 1px solid #d4edda; width: 60%; background: linear-gradient(to right, #f8fff9 0%, #e8f5e8 100%);'>\n" +
+                        "                            <div style='display: flex; align-items: center;'>\n" +
+                        "                                <span style='background-color: #28a745; color: white; padding: 4px 8px; border-radius: 12px; font-size: 10px; font-weight: bold; margin-right: 10px; text-transform: uppercase;'>REWARD</span>\n" +
+                        "                                <div>\n" +
+                        "                                    <span style='font-weight: bold; font-size: 16px; color: #155724;'>" + item.getItemName() + "</span>\n" +
+                        "                                    <br><span style='font-size: 12px; color: #6c757d; font-style: italic;'>✨ Redeemed with loyalty points</span>\n" +
+                        "                                </div>\n" +
+                        "                            </div>\n" +
                         "                        </td>\n" +
-                        "                        <td style='padding: 15px; border-bottom: 1px solid #eeeeee; text-align: center; background-color: #f8fff9;'>\n" +
+                        "                        <td style='padding: 18px 15px; border-bottom: 1px solid #d4edda; text-align: center; background: linear-gradient(to right, #f8fff9 0%, #e8f5e8 100%); font-weight: bold;'>\n" +
                         "                            x" + item.getQuantity() + "\n" +
                         "                        </td>\n" +
-                        "                        <td style='padding: 15px; border-bottom: 1px solid #eeeeee; text-align: right; background-color: #f8fff9; color: #28a745; font-weight: bold;'>\n" +
-                        "                            FREE!\n" +
+                        "                        <td style='padding: 18px 15px; border-bottom: 1px solid #d4edda; text-align: right; background: linear-gradient(to right, #f8fff9 0%, #e8f5e8 100%);'>\n" +
+                        "                            <div style='background-color: #28a745; color: white; padding: 8px 12px; border-radius: 20px; display: inline-block; font-weight: bold; font-size: 14px; box-shadow: 0 2px 4px rgba(40,167,69,0.3);'>FREE!</div>\n" +
                         "                        </td>\n" +
                         "                    </tr>\n";
 
-                // Fetch and append customizations for reward items
+                // Fetch and append customizations for reward items - enhanced styling
                 List<OrderItemCustomization> selectedCustomizations = orderItemCustomizationRepository.findByOrderItemId(item.getId());
                 if (!selectedCustomizations.isEmpty()) {
                     customerHtmlBody += "                    <tr>\n" +
-                            "                        <td colspan='3' style='padding: 0 15px 15px 30px; border-bottom: 1px solid #eeeeee; background-color: #f8fff9;'>\n";
+                            "                        <td colspan='3' style='padding: 0 15px 15px 30px; border-bottom: 1px solid #d4edda; background: linear-gradient(to right, #f8fff9 0%, #e8f5e8 100%);'>\n";
 
                     for (OrderItemCustomization customization : selectedCustomizations) {
                         Customization customizationDetails = customization.getCustomization();
-                        customerHtmlBody += "                            <div style='color: #666666; font-size: 14px; margin-bottom: 5px;'>\n" +
+                        customerHtmlBody += "                            <div style='color: #495057; font-size: 14px; margin-bottom: 5px; padding: 4px 0;'>\n" +
                                 "                                • " + customizationDetails.getName();
 
                         if (customizationDetails.getPrice().compareTo(BigDecimal.ZERO) > 0) {
-                            customerHtmlBody += " <span style='color: #28a745;'>(+ $" +
-                                    String.format("%.2f", customizationDetails.getPrice()) + ")</span>";
+                            customerHtmlBody += " <span style='color: #28a745; font-weight: bold;'>(+ $" +
+                                    String.format("%.2f", customizationDetails.getPrice()) + " - Also FREE!)</span>";
                         }
 
                         customerHtmlBody += "\n                            </div>\n";
@@ -402,6 +412,13 @@ public class PaymentService {
                 }
             }
             customerHtmlBody += "                </table>\n";
+
+            // Add a special message about reward items
+            customerHtmlBody += "                <div style='background-color: #d1ecf1; border-left: 4px solid #17a2b8; padding: 15px; margin-bottom: 25px; border-radius: 4px;'>\n" +
+                    "                    <p style='margin: 0; font-size: 14px; color: #0c5460;'>\n" +
+                    "                        <strong>💫 Thank you for being a loyal customer!</strong> The items above were earned through your loyalty points and are completely free.\n" +
+                    "                    </p>\n" +
+                    "                </div>\n";
         }
 
         // Add order totals
@@ -422,8 +439,28 @@ public class PaymentService {
                 "                        <td style='padding: 12px 15px; text-align: right; font-weight: bold;'>Service Fee:</td>\n" +
                 "                        <td style='padding: 12px 15px; text-align: right;'>$" +
                 String.format("%.2f", order.getServiceFee()) + "</td>\n" +
-                "                    </tr>\n" +
-                "                    <tr>\n" +
+                "                    </tr>\n";
+
+        // Add reward discount line if there are reward items
+        if (!rewardItems.isEmpty()) {
+            BigDecimal rewardDiscount = rewardItems.stream()
+                    .map(item -> {
+                        MenuItem menuItem = menuItemRepository.findById(item.getMenuItemId()).orElse(null);
+                        if (menuItem != null) {
+                            return menuItem.getPrice().multiply(BigDecimal.valueOf(item.getQuantity()));
+                        }
+                        return BigDecimal.ZERO;
+                    })
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+            customerHtmlBody += "                    <tr>\n" +
+                    "                        <td style='padding: 12px 15px; text-align: right; font-weight: bold; color: #28a745;'>Loyalty Rewards Discount:</td>\n" +
+                    "                        <td style='padding: 12px 15px; text-align: right; color: #28a745; font-weight: bold;'>-$" +
+                    String.format("%.2f", rewardDiscount) + "</td>\n" +
+                    "                    </tr>\n";
+        }
+
+        customerHtmlBody += "                    <tr>\n" +
                 "                        <td style='padding: 15px; text-align: right; font-weight: bold; font-size: 18px; border-top: 2px solid #eeeeee;'>Total:</td>\n" +
                 "                        <td style='padding: 15px; text-align: right; font-weight: bold; font-size: 18px; border-top: 2px solid #eeeeee; color: #c6632c;'>$" +
                 String.format("%.2f", order.getTotalAmount()) + "</td>\n" +
@@ -446,7 +483,7 @@ public class PaymentService {
                 "</body>\n" +
                 "</html>";
 
-        // Admin HTML email - IMPROVED VERSION
+        // Admin HTML email - IMPROVED VERSION with enhanced reward item display
         String adminHtmlBody = "<!DOCTYPE html>\n" +
                 "<html>\n" +
                 "<head>\n" +
@@ -523,7 +560,7 @@ public class PaymentService {
         // Add regular item details for admin
         for (OrderItem item : regularItems) {
             MenuItem menuItem = menuItemRepository.findById(item.getMenuItemId())
-                    .orElseThrow(() -> new RuntimeException("Menu item not found"));
+                    .orElseThrow(() -> new RuntimeException("Menu item not found for ID: " + item.getMenuItemId()));
 
             adminHtmlBody += "                    <tr>\n" +
                     "                        <td style='padding: 15px; border-bottom: 1px solid #eeeeee; width: 60%; font-weight: bold;'>\n" +
@@ -563,31 +600,37 @@ public class PaymentService {
 
         adminHtmlBody += "                </table>\n";
 
-        // Add reward items section for admin if there are any
+        // Add reward items section for admin if there are any - ENHANCED ADMIN VERSION
         if (!rewardItems.isEmpty()) {
             adminHtmlBody += "                \n" +
-                    "                <!-- REWARD ITEMS -->\n" +
-                    "                <table role='presentation' width='100%' cellspacing='0' cellpadding='0' border='0' style='margin-bottom: 25px; border-collapse: separate; border-spacing: 0;'>\n" +
+                    "                <!-- REWARD ITEMS - ADMIN ALERT -->\n" +
+                    "                <table role='presentation' width='100%' cellspacing='0' cellpadding='0' border='0' style='margin-bottom: 25px; border-collapse: separate; border-spacing: 0; border: 3px solid #ffc107; border-radius: 8px; overflow: hidden;'>\n" +
                     "                    <tr>\n" +
-                    "                        <td colspan='3' style='background-color: #28a745; padding: 12px 15px; border-top-left-radius: 6px; border-top-right-radius: 6px; border-bottom: 2px solid #1e7e34;'>\n" +
-                    "                            <h3 style='margin: 0; color: #ffffff; font-size: 16px;'>🎁 Reward Items (FREE!)</h3>\n" +
+                    "                        <td colspan='3' style='background: linear-gradient(135deg, #ffc107 0%, #ffca2c 100%); padding: 15px; color: #000; text-align: center; position: relative;'>\n" +
+                    "                            <h3 style='margin: 0; font-size: 18px; font-weight: bold; text-shadow: 0 1px 2px rgba(0,0,0,0.1);'>⚠️ REWARD ITEMS - NO CHARGE ⚠️</h3>\n" +
+                    "                            <p style='margin: 5px 0 0 0; font-size: 12px; font-weight: bold; text-transform: uppercase;'>These items are FREE for the customer</p>\n" +
                     "                        </td>\n" +
                     "                    </tr>\n";
 
             for (OrderItem item : rewardItems) {
                 MenuItem menuItem = menuItemRepository.findById(item.getMenuItemId())
-                        .orElseThrow(() -> new RuntimeException("Menu item not found"));
+                        .orElseThrow(() -> new RuntimeException("Menu item not found for reward item ID: " + item.getMenuItemId()));
 
                 adminHtmlBody += "                    <tr>\n" +
-                        "                        <td style='padding: 15px; border-bottom: 1px solid #eeeeee; width: 60%; font-weight: bold; background-color: #f8fff9;'>\n" +
-                        "                            <span style='font-size: 16px; color: #28a745;'>" + menuItem.getName() + "</span>\n" +
-                        "                            <br><span style='font-size: 12px; color: #6c757d; font-style: italic; font-weight: normal;'>Redeemed with points</span>\n" +
+                        "                        <td style='padding: 18px 15px; border-bottom: 1px solid #fff3cd; width: 60%; font-weight: bold; background: linear-gradient(to right, #fffbf0 0%, #fff8e1 100%); position: relative;'>\n" +
+                        "                            <div style='display: flex; align-items: center;'>\n" +
+                        "                                <span style='background-color: #dc3545; color: white; padding: 6px 10px; border-radius: 4px; font-size: 10px; font-weight: bold; margin-right: 10px; text-transform: uppercase;'>FREE ITEM</span>\n" +
+                        "                                <div>\n" +
+                        "                                    <span style='font-size: 16px; color: #495057;'>" + menuItem.getName() + "</span>\n" +
+                        "                                    <br><span style='font-size: 12px; color: #6c757d; font-style: italic; font-weight: normal;'>🎁 Customer redeemed with loyalty points</span>\n" +
+                        "                                </div>\n" +
+                        "                            </div>\n" +
                         "                        </td>\n" +
-                        "                        <td style='padding: 15px; border-bottom: 1px solid #eeeeee; text-align: center; font-weight: bold; background-color: #f8fff9;'>\n" +
+                        "                        <td style='padding: 18px 15px; border-bottom: 1px solid #fff3cd; text-align: center; font-weight: bold; background: linear-gradient(to right, #fffbf0 0%, #fff8e1 100%);'>\n" +
                         "                            x" + item.getQuantity() + "\n" +
                         "                        </td>\n" +
-                        "                        <td style='padding: 15px; border-bottom: 1px solid #eeeeee; text-align: right; background-color: #f8fff9; color: #28a745; font-weight: bold;'>\n" +
-                        "                            FREE!\n" +
+                        "                        <td style='padding: 18px 15px; border-bottom: 1px solid #fff3cd; text-align: right; background: linear-gradient(to right, #fffbf0 0%, #fff8e1 100%);'>\n" +
+                        "                            <div style='background-color: #dc3545; color: white; padding: 8px 12px; border-radius: 4px; display: inline-block; font-weight: bold; font-size: 14px;'>NO CHARGE</div>\n" +
                         "                        </td>\n" +
                         "                    </tr>\n";
 
@@ -595,16 +638,16 @@ public class PaymentService {
                 List<OrderItemCustomization> selectedCustomizations = orderItemCustomizationRepository.findByOrderItemId(item.getId());
                 if (!selectedCustomizations.isEmpty()) {
                     adminHtmlBody += "                    <tr>\n" +
-                            "                        <td colspan='3' style='padding: 0 15px 15px 30px; border-bottom: 1px solid #eeeeee; background-color: #f8fff9;'>\n";
+                            "                        <td colspan='3' style='padding: 0 15px 15px 30px; border-bottom: 1px solid #fff3cd; background: linear-gradient(to right, #fffbf0 0%, #fff8e1 100%);'>\n";
 
                     for (OrderItemCustomization customization : selectedCustomizations) {
                         Customization customizationDetails = customization.getCustomization();
-                        adminHtmlBody += "                            <div style='color: #666666; font-size: 14px; margin-bottom: 5px;'>\n" +
+                        adminHtmlBody += "                            <div style='color: #495057; font-size: 14px; margin-bottom: 5px; padding: 4px 0;'>\n" +
                                 "                                • " + customizationDetails.getName();
 
                         if (customizationDetails.getPrice().compareTo(BigDecimal.ZERO) > 0) {
-                            adminHtmlBody += " <span style='color: #28a745;'>(+ $" +
-                                    String.format("%.2f", customizationDetails.getPrice()) + ")</span>";
+                            adminHtmlBody += " <span style='color: #dc3545; font-weight: bold;'>(+ $" +
+                                    String.format("%.2f", customizationDetails.getPrice()) + " - Also FREE!)</span>";
                         }
 
                         adminHtmlBody += "\n                            </div>\n";

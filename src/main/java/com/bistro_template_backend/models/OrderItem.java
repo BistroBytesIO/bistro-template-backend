@@ -30,4 +30,10 @@ public class OrderItem {
     @Column(name = "is_reward_item")
     private boolean isRewardItem;
 
+    @Column(name = "original_price")
+    private BigDecimal originalPrice;
+
+    @Column(name = "item_name", length = 255)
+    private String itemName;
+
 }

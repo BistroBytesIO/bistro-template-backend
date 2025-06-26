@@ -46,8 +46,11 @@ public class CreateOrderRequest {
         @DecimalMax(value = "9999.99", message = "Price must not exceed 9999.99")
         private BigDecimal priceAtOrderTime;
 
-        private boolean isRewardItem; // Add this field
+        private boolean isRewardItem;
 
+        private BigDecimal originalPrice;
+
+        private String name; // Item name for preservation
 
         @Valid
         private List<CustomizationDTO> customizations;

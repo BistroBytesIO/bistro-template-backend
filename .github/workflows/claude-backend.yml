@@ -1,0 +1,73 @@
+name: Claude Backend Assistant - Voice AI Ordering
+on:
+  issues:
+    types: [opened, assigned]
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+  pull_request_review:
+    types: [submitted]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  id-token: write
+
+jobs:
+  claude-backend:
+    runs-on: ubuntu-latest
+    if: |
+      (github.event_name == 'issues' && github.event.action == 'opened') ||
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude'))
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '23'
+
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
+      - name: Run Claude Code Action
+        uses: anthropics/claude-code-action@beta
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ steps.app-token.outputs.token }}
+          anthropic_model: "claude-3-7-sonnet-20250219"
+          allowed_tools: "Bash(./gradlew:*),Bash(java:*),Bash(git:*),View,GlobTool,GrepTool,BatchTool"
+          custom_instructions: |
+            You are a Spring Boot backend development expert specializing in Voice AI integration. Focus on:
+            - RESTful API development for voice ordering systems
+            - OpenAI API integration (Whisper, GPT-4, TTS)
+            - WebSocket implementation for real-time voice communication
+            - Voice order processing and validation
+            - Conversational AI context management
+            - Integration with existing restaurant ordering system
+            - Voice-controlled payment processing
+            - Real-time order building through conversation
+            - Menu knowledge integration for AI responses
+            - Voice session management and cleanup
+            
+            Key Voice AI Backend Requirements:
+            - Integrate OpenAI Whisper for speech-to-text processing
+            - Implement GPT-4 for conversational order taking
+            - Add OpenAI TTS for natural voice responses
+            - Create voice order validation and processing
+            - Build conversation context management
+            - Handle voice payment confirmations
+            - Integrate with existing menu and order systems

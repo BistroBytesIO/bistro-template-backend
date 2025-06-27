@@ -195,6 +195,45 @@ public class VoiceAIService {
     }
 
     /**
+     * Process text-only interaction (conversation processing without audio)
+     */
+    @Async("voiceAITaskExecutor")
+    public CompletableFuture<VoiceProcessingResult> processTextInteraction(
+            String text, String sessionId, String language,
+            List<String> conversationHistory, String menuContext, String orderContext) {
+        
+        try {
+            log.info("Starting text interaction processing for session: {}", sessionId);
+            
+            // Step 1: Process with GPT-4 (using provided text directly)
+            String aiResponse = processConversation(text, conversationHistory, menuContext, orderContext);
+            
+            VoiceProcessingResult result = VoiceProcessingResult.builder()
+                    .sessionId(sessionId)
+                    .transcription(text)
+                    .aiResponse(aiResponse)
+                    .processingTime(System.currentTimeMillis())
+                    .success(true)
+                    .build();
+            
+            log.info("Text interaction processing completed successfully for session: {}", sessionId);
+            return CompletableFuture.completedFuture(result);
+            
+        } catch (Exception e) {
+            log.error("Error processing text interaction for session: {}", sessionId, e);
+            
+            VoiceProcessingResult result = VoiceProcessingResult.builder()
+                    .sessionId(sessionId)
+                    .error(e.getMessage())
+                    .processingTime(System.currentTimeMillis())
+                    .success(false)
+                    .build();
+            
+            return CompletableFuture.completedFuture(result);
+        }
+    }
+
+    /**
      * Validate audio file format and size
      */
     private void validateAudioFile(MultipartFile audioFile) throws Exception {

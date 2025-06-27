@@ -1,5 +1,6 @@
 package com.bistro_template_backend.controllers;
 
+import com.bistro_template_backend.dto.VoiceTextProcessRequest;
 import com.bistro_template_backend.services.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -11,6 +12,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import jakarta.validation.Valid;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -125,6 +127,69 @@ public class VoiceOrderController {
             log.error("Error processing voice input for session: {}", sessionId, e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", "Failed to process voice input: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * Process text input (text-only conversation without audio processing)
+     */
+    @PostMapping("/session/{sessionId}/process-text")
+    public ResponseEntity<?> processTextInput(
+            @PathVariable String sessionId,
+            @Valid @RequestBody VoiceTextProcessRequest request) {
+        
+        try {
+            log.info("Processing text input for session: {}", sessionId);
+
+            // Validate session exists
+            VoiceSessionManager.VoiceSession session = voiceSessionManager.getSession(sessionId);
+            
+            // Get conversation context
+            List<String> conversationHistory = session.getConversationHistory();
+            String menuContext = conversationContextService.buildFocusedMenuContext(
+                    request.getText(), sessionId);
+            String orderContext = conversationContextService.getOrderSummary(sessionId);
+
+            // Process text interaction asynchronously
+            CompletableFuture<VoiceAIService.VoiceProcessingResult> resultFuture = 
+                    voiceAIService.processTextInteraction(
+                            request.getText(), sessionId, request.getLanguage(), 
+                            conversationHistory, menuContext, orderContext);
+
+            // Wait for result (with timeout)
+            VoiceAIService.VoiceProcessingResult result = resultFuture.get();
+
+            if (!result.isSuccess()) {
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                        .body(Map.of("error", "Text processing failed: " + result.getError()));
+            }
+
+            // Process order intent from text
+            ConversationContextService.OrderUpdateResult orderResult = 
+                    conversationContextService.processOrderIntent(result.getTranscription(), sessionId);
+
+            // Add conversation turn to session
+            voiceSessionManager.addConversationTurn(sessionId, result.getTranscription(), result.getAiResponse());
+
+            // Prepare response
+            Map<String, Object> response = new HashMap<>();
+            response.put("sessionId", sessionId);
+            response.put("transcription", result.getTranscription());
+            response.put("aiResponse", result.getAiResponse());
+            response.put("orderUpdated", orderResult.isOrderUpdated());
+            
+            if (orderResult.isOrderUpdated()) {
+                response.put("orderSummary", conversationContextService.getOrderSummary(sessionId));
+                response.put("orderAction", orderResult.getAction());
+            }
+
+            log.info("Text input processed successfully for session: {}", sessionId);
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("Error processing text input for session: {}", sessionId, e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Failed to process text input: " + e.getMessage()));
         }
     }
 

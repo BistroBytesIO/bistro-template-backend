@@ -40,8 +40,7 @@ dependencies {
 	implementation 'com.theokanning.openai-gpt3-java:service:0.18.2'
 	// HTTP client for OpenAI API calls
 	implementation 'com.squareup.okhttp3:okhttp:4.12.0'
-	// JSON processing
-	implementation 'com.fasterxml.jackson.core:jackson-databind'
+
 	// Audio processing libraries
 	implementation 'org.apache.tika:tika-core:2.9.1'
 	implementation 'org.apache.tika:tika-parsers-standard-package:2.9.1'
@@ -54,6 +53,18 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-cache'
 	// Validation
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
+
+	// WebSocket client for connecting to OpenAI
+	implementation 'org.springframework:spring-websocket:6.1.2'
+	implementation 'org.springframework:spring-messaging:6.1.2'
+
+	// STOMP client
+	implementation 'org.springframework.integration:spring-integration-stomp:6.2.1'
+
+	// JSON processing
+	implementation 'com.fasterxml.jackson.core:jackson-databind:2.18.2'
+	implementation 'com.fasterxml.jackson.core:jackson-core:2.18.2'
+	implementation 'com.fasterxml.jackson.core:jackson-annotations:2.18.2'
 	
 	compileOnly 'org.projectlombok:lombok'
 	runtimeOnly 'org.postgresql:postgresql'

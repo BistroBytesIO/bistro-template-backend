@@ -12,38 +12,26 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
     public void configureMessageBroker(MessageBrokerRegistry config) {
-        System.out.println("🔧 Configuring WebSocket Message Broker...");
+        // Enable simple message broker for topics
+        config.enableSimpleBroker("/topic", "/queue", "/user");
 
-        config.enableSimpleBroker("/topic", "/queue");
+        // Set application destination prefix
         config.setApplicationDestinationPrefixes("/app");
 
-        System.out.println("✅ Message Broker configured");
+        // Set user destination prefix
+        config.setUserDestinationPrefix("/user");
     }
 
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
-        System.out.println("🔧 Registering STOMP Endpoints...");
-
-        // **SockJS endpoint with proper CORS configuration**
+        // Register STOMP endpoint for regular orders
         registry.addEndpoint("/ws-orders")
-                .setAllowedOriginPatterns(
-                        "http://localhost:*",
-                        "http://127.0.0.1:*"
-                )
-                .withSockJS()
-                .setHeartbeatTime(25000)
-                .setDisconnectDelay(5000)
-                .setSessionCookieNeeded(false)  // Disable session cookies
-                .setClientLibraryUrl("https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js")
-                .setSuppressCors(false);  // **IMPORTANT: Don't suppress CORS, handle it properly**
+                .setAllowedOriginPatterns("*")
+                .withSockJS();
 
-        // **Native WebSocket endpoint**
-        registry.addEndpoint("/ws-orders")
-                .setAllowedOriginPatterns(
-                        "http://localhost:*",
-                        "http://127.0.0.1:*"
-                );
-
-        System.out.println("✅ STOMP Endpoints registered with CORS support");
+        // Register STOMP endpoint for realtime voice
+        registry.addEndpoint("/ws")
+                .setAllowedOriginPatterns("*")
+                .withSockJS();
     }
 }

@@ -32,5 +32,10 @@ public class MenuItem {
     @Column(name = "is_featured")
     private Boolean isFeatured;
 
+    @Column(name = "is_reward_item")
+    private Boolean isRewardItem = false;
+
+    @Column(name = "points_to_redeem")
+    private Integer pointsToRedeem;
 
 }

@@ -52,7 +52,7 @@ public class VoiceAIConfig {
     @Value("${openai.models.tts:tts-1}")
     private String ttsModel;
 
-    @Value("${openai.models.tts-voice:alloy}")
+    @Value("${openai.models.tts-voice:ash}")
     private String ttsVoice;
 
     // Voice AI Configuration

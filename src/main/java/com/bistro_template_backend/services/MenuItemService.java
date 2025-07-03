@@ -42,4 +42,8 @@ public class MenuItemService {
     public List<MenuItem> getFeaturedItems() {
         return menuItemRepository.findByIsFeaturedTrue();
     }
+
+    public List<MenuItem> getRewardItems() {
+        return menuItemRepository.findByIsRewardItemTrueOrderByPointsToRedeemAsc();
+    }
 }

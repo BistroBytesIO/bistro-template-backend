@@ -93,4 +93,6 @@ public interface VoiceSessionRepository extends JpaRepository<VoiceSession, Stri
      * Delete old inactive sessions for cleanup
      */
     void deleteByIsActiveFalseAndEndedAtBefore(LocalDateTime cutoffTime);
+
+    Optional<VoiceSession> findBySessionId(String sessionId);
 }

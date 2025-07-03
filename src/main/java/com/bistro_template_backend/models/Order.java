@@ -39,4 +39,7 @@ public class Order {
 
     // No @OneToMany to OrderItem. We'll store orderId in OrderItem separately.
 
+
+     @Column(name = "customer_account_id")
+     private Long customerAccountId;
 }

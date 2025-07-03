@@ -19,7 +19,7 @@ public class TTSRequest {
     private String text;
 
     @Size(max = 20, message = "Voice cannot exceed 20 characters")
-    private String voice = "alloy";
+    private String voice = "ash";
 
     @Size(max = 10, message = "Format cannot exceed 10 characters")
     private String format = "mp3";

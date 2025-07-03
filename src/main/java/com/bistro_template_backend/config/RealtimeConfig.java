@@ -12,7 +12,7 @@ public class RealtimeConfig {
     private String apiKey;
     private String baseUrl = "wss://api.openai.com/v1/realtime";
     private String model = "gpt-4o-realtime-preview-2025-06-03";
-    private String voice = "alloy";
+    private String voice = "ash";
     private boolean enableVad = true;
     private String vadType = "server_vad"; // server_vad or none
     private int audioSampleRate = 24000;

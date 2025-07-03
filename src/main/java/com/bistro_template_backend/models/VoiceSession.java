@@ -22,20 +22,27 @@ public class VoiceSession {
     @Column(name = "customer_id", nullable = false, length = 50)
     private String customerId;
 
-    @Column(name = "customer_email", nullable = false, length = 255)
+    @Column(name = "customer_email", length = 255)
     private String customerEmail;
 
-    @Column(name = "customer_name", length = 100)
-    private String customerName;
+    @Column(name = "session_type", length = 50)
+    private String sessionType;
 
-    @Column(name = "customer_phone", length = 20)
-    private String customerPhone;
+    @Column(name = "connection_status", length = 50)
+    private String connectionStatus;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", length = 50)
+    private VoiceSessionStatus status;
 
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
     @Column(name = "last_activity_at", nullable = false)
     private LocalDateTime lastActivityAt;
+
+    @Column(name = "expires_at")
+    private LocalDateTime expiresAt;
 
     @Column(name = "ended_at")
     private LocalDateTime endedAt;
@@ -58,9 +65,11 @@ public class VoiceSession {
     @Column(name = "created_order_id")
     private Long createdOrderId;
 
-    // Conversation history stored as JSON text
-    @Column(name = "conversation_history", columnDefinition = "TEXT")
-    private String conversationHistory;
+    @Column(name = "total_duration")
+    private Long totalDuration;
+
+    @Column(name = "success_rate")
+    private Double successRate;
 
     // Current order stored as JSON text
     @Column(name = "current_order", columnDefinition = "TEXT")
@@ -69,6 +78,10 @@ public class VoiceSession {
     // Session metadata stored as JSON text
     @Column(name = "metadata", columnDefinition = "TEXT")
     private String metadata;
+
+    // Voice metrics stored as JSON text
+    @Column(name = "voice_metrics", columnDefinition = "TEXT")
+    private String voiceMetrics;
 
     @PrePersist
     protected void onCreate() {

@@ -30,4 +30,10 @@ public class MenuController {
         List<MenuItem> featuredItems = menuItemService.getFeaturedItems();
         return ResponseEntity.ok(featuredItems);
     }
+
+    @GetMapping("/reward-items")
+    public ResponseEntity<List<MenuItem>> getRewardItems() {
+        List<MenuItem> rewardItems = menuItemService.getRewardItems();
+        return ResponseEntity.ok(rewardItems);
+    }
 }

@@ -33,4 +33,7 @@ public class Customer {
 
     @Column(name = "total_orders")
     private Integer totalOrders = 0;
+
+    @Column(name = "stripe_customer_id")
+    private String stripeCustomerId;
 }

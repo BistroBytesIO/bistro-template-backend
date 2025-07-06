@@ -39,7 +39,14 @@ public class Order {
 
     // No @OneToMany to OrderItem. We'll store orderId in OrderItem separately.
 
+    // Stripe payment tracking
+    @Column(name = "stripe_payment_intent_id")
+    private String stripePaymentIntentId;
 
      @Column(name = "customer_account_id")
      private Long customerAccountId;
+
+    // Estimated pickup time for voice orders
+    @Column(name = "estimated_pickup_time")
+    private LocalDateTime estimatedPickupTime;
 }

@@ -153,22 +153,11 @@ public class SavedPaymentMethodService {
             // Configure based on payment method type
             switch (paymentMethodType) {
                 case "apple_pay":
-                    paramsBuilder.addPaymentMethodType("card")
-                               .setAutomaticPaymentMethods(
-                                   SetupIntentCreateParams.AutomaticPaymentMethods.builder()
-                                       .setEnabled(true)
-                                       .setAllowRedirects(SetupIntentCreateParams.AutomaticPaymentMethods.AllowRedirects.NEVER)
-                                       .build()
-                               );
-                    break;
+                    // For Apple Pay, use Checkout Session which is more reliable
+                    return createCheckoutSessionForSetup(stripeCustomerId, customerEmail, "apple_pay");
                 case "google_pay":
-                    paramsBuilder.addPaymentMethodType("card")
-                               .setAutomaticPaymentMethods(
-                                   SetupIntentCreateParams.AutomaticPaymentMethods.builder()
-                                       .setEnabled(true)
-                                       .setAllowRedirects(SetupIntentCreateParams.AutomaticPaymentMethods.AllowRedirects.ALWAYS)
-                                       .build()
-                               );
+                    // For Google Pay, use SetupIntent to work with Stripe Elements PaymentRequest
+                    paramsBuilder.addPaymentMethodType("card");
                     break;
                 default:
                     paramsBuilder.addPaymentMethodType("card");
@@ -199,18 +188,62 @@ public class SavedPaymentMethodService {
      * Create Checkout Session for card setup (modern approach)
      */
     private Map<String, Object> createCheckoutSessionForSetup(String stripeCustomerId, String customerEmail) {
+        return createCheckoutSessionForSetup(stripeCustomerId, customerEmail, "card");
+    }
+    
+    /**
+     * Create Checkout Session for payment method setup with specific type
+     */
+    private Map<String, Object> createCheckoutSessionForSetup(String stripeCustomerId, String customerEmail, String paymentMethodType) {
         try {
-            SessionCreateParams params = SessionCreateParams.builder()
+            SessionCreateParams.Builder paramsBuilder = SessionCreateParams.builder()
                     .setMode(SessionCreateParams.Mode.SETUP)
                     .setCustomer(stripeCustomerId)
-                    .addPaymentMethodType(SessionCreateParams.PaymentMethodType.CARD)
                     .setSuccessUrl("http://localhost:3000/profile?setup=success")
                     .setCancelUrl("http://localhost:3000/profile?setup=cancelled")
                     .putMetadata("customer_email", customerEmail)
-                    .putMetadata("purpose", "save_card_for_voice_ordering")
-                    .build();
+                    .putMetadata("purpose", "save_payment_method_for_voice_ordering")
+                    .putMetadata("payment_method_type", paymentMethodType);
 
-            Session session = Session.create(params);
+            // Configure payment method types based on the request
+            if ("google_pay".equals(paymentMethodType)) {
+                // The issue is that Google Pay setup requires a different approach
+                // We need to use the payment method type that explicitly supports Google Pay
+                // However, for setup mode, we may need to use the Payment Request API directly
+                
+                // Try using Link payment method type which may work better for wallet setup
+                paramsBuilder.addPaymentMethodType(SessionCreateParams.PaymentMethodType.LINK);
+                paramsBuilder.addPaymentMethodType(SessionCreateParams.PaymentMethodType.CARD);
+                
+                // Configure payment method options for setup
+                paramsBuilder.setPaymentMethodOptions(
+                    SessionCreateParams.PaymentMethodOptions.builder()
+                        .setCard(SessionCreateParams.PaymentMethodOptions.Card.builder()
+                            .setSetupFutureUsage(SessionCreateParams.PaymentMethodOptions.Card.SetupFutureUsage.OFF_SESSION)
+                            .build())
+                        .build()
+                );
+                
+                log.info("Configuring session for Google Pay setup with Link support");
+            } else if ("apple_pay".equals(paymentMethodType)) {
+                // For Apple Pay, use similar approach
+                paramsBuilder.addPaymentMethodType(SessionCreateParams.PaymentMethodType.CARD);
+                
+                paramsBuilder.setPaymentMethodOptions(
+                    SessionCreateParams.PaymentMethodOptions.builder()
+                        .setCard(SessionCreateParams.PaymentMethodOptions.Card.builder()
+                            .setSetupFutureUsage(SessionCreateParams.PaymentMethodOptions.Card.SetupFutureUsage.OFF_SESSION)
+                            .build())
+                        .build()
+                );
+                
+                log.info("Configuring session specifically for Apple Pay setup");
+            } else {
+                // For regular cards, use standard configuration
+                paramsBuilder.addPaymentMethodType(SessionCreateParams.PaymentMethodType.CARD);
+            }
+
+            Session session = Session.create(paramsBuilder.build());
             
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
@@ -218,11 +251,11 @@ public class SavedPaymentMethodService {
             response.put("sessionUrl", session.getUrl());
             response.put("customerId", stripeCustomerId);
             
-            log.info("Created Checkout Session for card setup - customer: {} session: {}", customerEmail, session.getId());
+            log.info("Created Checkout Session for {} setup - customer: {} session: {}", paymentMethodType, customerEmail, session.getId());
             return response;
             
         } catch (StripeException e) {
-            log.error("Error creating Checkout Session for setup: {}", e.getMessage(), e);
+            log.error("Error creating Checkout Session for {} setup: {}", paymentMethodType, e.getMessage(), e);
             return createErrorResponse("Failed to create checkout session: " + e.getMessage());
         }
     }
